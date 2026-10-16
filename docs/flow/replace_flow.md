@@ -19,8 +19,8 @@ flowchart TD
     TABLE -- yes --> ERROR[Raise not-implemented compiler error]
     TABLE -- no --> METRIC{Target and existing are both metric views?}
     METRIC -- yes --> METRICSQL[get_replace_metric_view_sql]
-    METRIC -- no --> COMPAT{"Target and existing are both materialized views\nand either has a Compatibility Mode location?"}
-    COMPAT -- yes --> COMPATSQL["get_mv_compatibility_rebuild_sql:<br/>same partitions: CREATE OR REPLACE;<br/>partitions change, no desired location: drop_and_create;<br/>otherwise raise before any DROP"]
+    METRIC -- no --> COMPAT{"Target and existing are both materialized views\nand the model sets a Compatibility Mode location?"}
+    COMPAT -- yes --> COMPATSQL["get_mv_compatibility_rebuild_sql:<br/>same location and partitions: CREATE OR REPLACE;<br/>otherwise raise before any DROP"]
     COMPAT -- no --> SAFE{use_safer_relation_operations?}
 
     SAFE -- false --> DIRECT{"Same relation type, existing can be replaced,\nand configured file format is Delta?"}
@@ -41,15 +41,16 @@ flowchart TD
 
 A materialized view's Compatibility Mode location
 (`delta.universalFormat.compatibility.location`) stays reserved after the view is dropped, so
-`drop_and_create` at the same location fails with `LOCATION_OVERLAP` and leaves no view. When either
-side has a location, the decision ignores `use_safer_relation_operations`. It raises for an empty or
-changed location and for any partition change whose re-create keeps a location. The materialized
-view alter path's `partition_by` branch uses the same decision.
+`drop_and_create` at the same location fails with `LOCATION_OVERLAP` and leaves no view. When the
+model sets a location, the decision reads only the existing view's properties and partitions and
+ignores `use_safer_relation_operations`. It raises for an empty or changed location and for any
+partition change. The materialized view alter path's `partition_by` branch uses the same decision.
+Rebuilds whose model sets no location skip it and run no extra metadata queries.
 
-Direct replacement is available only when safe operations are disabled and the existing and target
-relations have the same type, the existing relation is replaceable, and the configured file format
-is Delta. In practice, the supported direct branches here are views and materialized views; table
-targets have already failed at the initial guard.
+Outside that branch, direct replacement is available only when safe operations are disabled and
+the existing and target relations have the same type, the existing relation is replaceable, and the
+configured file format is Delta. In practice, the supported direct branches here are views and
+materialized views; table targets have already failed at the initial guard.
 
 Tables and views can be renamed, except that an existing Hive metastore table is never renamed:
 Databricks rejects `ALTER TABLE ... RENAME TO` for managed Delta tables on S3. A view replacing a

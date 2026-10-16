@@ -2,7 +2,7 @@
 
 ### Fixes
 
-- Stop materialized views with a Compatibility Mode location from being dropped and lost when `use_safer_relation_operations` or a `partition_by` change would recreate them at the same location. Unchanged partitions now use `CREATE OR REPLACE`, and partition changes that keep the location fail before anything is dropped ([#1727](https://github.com/databricks/dbt-databricks/pull/1727))
+- Stop materialized views with a Compatibility Mode location from being dropped and lost when `use_safer_relation_operations` or a `partition_by` change would recreate them at the same location. Unchanged partitions now use `CREATE OR REPLACE`, and location or partition changes fail before anything is dropped ([#1727](https://github.com/databricks/dbt-databricks/pull/1727))
 
 ## dbt-databricks 1.12.7 (Oct 12, 2026)
 

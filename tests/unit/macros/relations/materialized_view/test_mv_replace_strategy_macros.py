@@ -12,11 +12,8 @@ LOCATION_KEY = "delta.universalFormat.compatibility.location"
 LOCATION = "abfss://c@a.dfs.core.windows.net/mv"
 
 
-def props(location=None, **extra):
-    properties = dict(extra)
-    if location is not None:
-        properties[LOCATION_KEY] = location
-    return properties
+def rows(*values):
+    return Mock(rows=[tuple(v) for v in values])
 
 
 class StrategyMacroTestBase(MacroTestBase):
@@ -49,54 +46,34 @@ class StrategyMacroTestBase(MacroTestBase):
 
 
 class TestMvCompatibilityRebuildStrategy(StrategyMacroTestBase):
-    def decide(self, template, desired_parts, existing_parts, desired_props, existing_props):
+    def decide(self, template, desired_location, existing_location, desired_parts, existing_parts):
         return self.call(
             template,
             "mv_compatibility_rebuild_strategy",
+            desired_location,
+            existing_location,
             desired_parts,
             existing_parts,
-            desired_props,
-            existing_props,
         )
 
     @pytest.mark.parametrize(
-        "desired_parts, existing_parts",
-        [([], []), (["id"], []), ([], ["id"]), (["id"], ["name"])],
-    )
-    def test_no_location_keeps_existing_behavior(self, template, desired_parts, existing_parts):
-        assert self.decide(template, desired_parts, existing_parts, props(), props()) is None
-
-    @pytest.mark.parametrize(
-        "desired_parts, existing_parts, desired_location, existing_location, strategy",
+        "existing_location, desired_parts, existing_parts, strategy",
         [
-            ([], [], LOCATION, LOCATION, "replace"),
-            (["`ID`"], ["id"], LOCATION, LOCATION, "replace"),
-            ([], [], LOCATION, None, "replace"),
-            (["id"], ["id"], None, LOCATION, "replace"),
-            ([], ["id"], None, LOCATION, "drop"),
-            (["name"], ["id"], None, LOCATION, "drop"),
-            ([], ["id"], LOCATION, LOCATION, "refuse"),
-            (["name"], ["id"], LOCATION, LOCATION, "refuse"),
-            (["id"], [], LOCATION, LOCATION, "refuse"),
-            (["name"], ["id"], LOCATION, None, "refuse"),
+            (LOCATION, [], [], "replace"),
+            (LOCATION, ["`ID`"], ["id"], "replace"),
+            (None, [], [], "replace"),
+            (None, ["id"], ["id"], "replace"),
+            (LOCATION, [], ["id"], "refuse"),
+            (LOCATION, ["name"], ["id"], "refuse"),
+            (LOCATION, ["id"], [], "refuse"),
+            (None, ["name"], ["id"], "refuse"),
+            (None, [], ["id"], "refuse"),
         ],
     )
     def test_partition_and_location_combinations(
-        self,
-        template,
-        desired_parts,
-        existing_parts,
-        desired_location,
-        existing_location,
-        strategy,
+        self, template, existing_location, desired_parts, existing_parts, strategy
     ):
-        decision = self.decide(
-            template,
-            desired_parts,
-            existing_parts,
-            props(desired_location),
-            props(existing_location, **{"pipelines.other": "x"}),
-        )
+        decision = self.decide(template, LOCATION, existing_location, desired_parts, existing_parts)
 
         assert decision["strategy"] == strategy
         if strategy == "refuse":
@@ -105,19 +82,17 @@ class TestMvCompatibilityRebuildStrategy(StrategyMacroTestBase):
 
     @pytest.mark.parametrize("desired_parts", [[], ["id"]])
     def test_location_change_refuses(self, template, desired_parts):
-        decision = self.decide(
-            template, desired_parts, ["id"], props(LOCATION + "_2"), props(LOCATION)
-        )
+        decision = self.decide(template, LOCATION + "_2", LOCATION, desired_parts, ["id"])
 
         assert decision["strategy"] == "refuse"
         assert f"from '{LOCATION}' to '{LOCATION}_2'" in decision["reason"]
 
     @pytest.mark.parametrize(
         "desired_location, existing_location, side",
-        [("", LOCATION, "desired"), ("  ", None, "desired"), (None, " ", "existing")],
+        [("", LOCATION, "desired"), ("  ", None, "desired"), (LOCATION, " ", "existing")],
     )
     def test_empty_location_refuses(self, template, desired_location, existing_location, side):
-        decision = self.decide(template, [], [], props(desired_location), props(existing_location))
+        decision = self.decide(template, desired_location, existing_location, [], [])
 
         assert decision["strategy"] == "refuse"
         assert f"the {side} '{LOCATION_KEY}' is set but empty" in decision["reason"]
@@ -129,54 +104,65 @@ class TestGetMvCompatibilityRebuildSql(StrategyMacroTestBase):
         return "replace.sql"
 
     @pytest.fixture(autouse=True)
-    def decision(self, context):
-        model_config = context["adapter"].get_config_from_model.return_value
-        existing_config = context["adapter"].get_relation_config.return_value
-        model_config.config = {
-            "partition_by": PartitionedByConfig(partition_by=[]),
-            "tblproperties": TblPropertiesConfig(tblproperties=props(LOCATION)),
-        }
-        existing_config.config = {
-            "partition_by": PartitionedByConfig(partition_by=["id"]),
-            "tblproperties": TblPropertiesConfig(tblproperties=props(LOCATION)),
-        }
-        context["mv_compatibility_rebuild_strategy"] = Mock()
-        context["get_replace_materialized_view_sql"] = Mock(return_value="create or replace mv")
-        context["drop_and_create"] = Mock(return_value=["drop mv", "create mv"])
-        return context["mv_compatibility_rebuild_strategy"]
+    def desired(self, context):
+        def configure(location, parts=()):
+            context["adapter"].get_config_from_model.return_value.config = {
+                "partition_by": PartitionedByConfig(partition_by=list(parts)),
+                "tblproperties": TblPropertiesConfig(
+                    tblproperties={} if location is None else {LOCATION_KEY: location}
+                ),
+            }
 
-    def rebuild(self, template_bundle, existing_relation):
+        configure(LOCATION)
+        context["fetch_tbl_properties"] = Mock(
+            return_value=rows((LOCATION_KEY, LOCATION), ("pipelines.pipelineId", "p1"))
+        )
+        context["describe_table_extended_without_caching"] = Mock(
+            return_value=rows(
+                ("id", "bigint", None),
+                ("grp", "string", None),
+                ("# Partition Information", "", ""),
+                ("# col_name", "data_type", "comment"),
+                ("grp", "string", None),
+                ("", "", ""),
+                ("# Detailed Table Information", "", ""),
+            )
+        )
+        context["mv_compatibility_rebuild_strategy"] = Mock(return_value={"strategy": "replace"})
+        context["get_replace_materialized_view_sql"] = Mock(return_value="create or replace mv")
+        return configure
+
+    def rebuild(self, template_bundle):
         return self.call(
             template_bundle.template,
             "get_mv_compatibility_rebuild_sql",
-            existing_relation,
+            Mock(),
             template_bundle.relation,
             "select 1",
         )
 
-    def test_passes_desired_and_existing_config(self, template_bundle, decision):
-        decision.return_value = None
+    def test_without_desired_location_reads_no_metadata(self, template_bundle, context, desired):
+        desired(None)
 
-        assert self.rebuild(template_bundle, Mock()) is None
-        decision.assert_called_once_with([], ["id"], props(LOCATION), props(LOCATION))
+        assert self.rebuild(template_bundle) is None
+        context["fetch_tbl_properties"].assert_not_called()
+        context["describe_table_extended_without_caching"].assert_not_called()
+        context["adapter"].get_relation_config.assert_not_called()
 
-    def test_replace_uses_create_or_replace(self, template_bundle, context, decision):
-        decision.return_value = {"strategy": "replace"}
+    def test_reads_existing_location_and_partitions(self, template_bundle, context, desired):
+        desired(LOCATION, ["grp"])
 
-        assert self.rebuild(template_bundle, Mock()) == "create or replace mv"
-        context["drop_and_create"].assert_not_called()
-
-    def test_drop_uses_drop_and_create(self, template_bundle, context, decision):
-        existing_relation = Mock()
-        decision.return_value = {"strategy": "drop"}
-
-        assert self.rebuild(template_bundle, existing_relation) == ["drop mv", "create mv"]
-        context["drop_and_create"].assert_called_once_with(
-            existing_relation, template_bundle.relation, "select 1"
+        assert self.rebuild(template_bundle) == "create or replace mv"
+        context["mv_compatibility_rebuild_strategy"].assert_called_once_with(
+            LOCATION, LOCATION, ["grp"], ["grp"]
         )
+        context["adapter"].get_relation_config.assert_not_called()
 
-    def test_refuse_raises_before_any_drop(self, template_bundle, context, decision):
-        decision.return_value = {"strategy": "refuse", "reason": "location would be reused"}
+    def test_refuse_raises_before_any_drop(self, template_bundle, context):
+        context["mv_compatibility_rebuild_strategy"].return_value = {
+            "strategy": "refuse",
+            "reason": "location would be reused",
+        }
 
         with pytest.raises(CompilationError, match="location would be reused"):
             self.run_macro_raw(
@@ -186,5 +172,4 @@ class TestGetMvCompatibilityRebuildSql(StrategyMacroTestBase):
                 template_bundle.relation,
                 "select 1",
             )
-        context["drop_and_create"].assert_not_called()
         context["get_replace_materialized_view_sql"].assert_not_called()
