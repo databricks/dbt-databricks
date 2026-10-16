@@ -1,6 +1,6 @@
 # Replace Flow
 
-_Last updated: 2026-10-09_
+_Last updated: 2026-10-16_
 
 Shared decision tree used when view, materialized-view, streaming-table, or metric-view helpers must
 replace an existing relation. Table and incremental V2 use their dedicated
@@ -19,7 +19,9 @@ flowchart TD
     TABLE -- yes --> ERROR[Raise not-implemented compiler error]
     TABLE -- no --> METRIC{Target and existing are both metric views?}
     METRIC -- yes --> METRICSQL[get_replace_metric_view_sql]
-    METRIC -- no --> SAFE{use_safer_relation_operations?}
+    METRIC -- no --> COMPAT{"Target and existing are both materialized views\nand either has a Compatibility Mode location?"}
+    COMPAT -- yes --> COMPATSQL["get_mv_compatibility_rebuild_sql:<br/>same partitions: CREATE OR REPLACE;<br/>partitions change, no desired location: drop_and_create;<br/>otherwise raise before any DROP"]
+    COMPAT -- no --> SAFE{use_safer_relation_operations?}
 
     SAFE -- false --> DIRECT{"Same relation type, existing can be replaced,\nand configured file format is Delta?"}
     DIRECT -- yes --> TYPE{Existing relation type?}
@@ -36,6 +38,13 @@ flowchart TD
     EXISTRENAME2 -- yes --> BACKUP["backup_and_create_in_place:<br/>back up existing; create target;<br/>drop backup"]
     EXISTRENAME2 -- no --> DROP["drop_and_create:<br/>drop existing; create target"]
 ```
+
+A materialized view's Compatibility Mode location
+(`delta.universalFormat.compatibility.location`) stays reserved after the view is dropped, so
+`drop_and_create` at the same location fails with `LOCATION_OVERLAP` and leaves no view. When either
+side has a location, the decision ignores `use_safer_relation_operations`. It raises for an empty or
+changed location and for any partition change whose re-create keeps a location. The materialized
+view alter path's `partition_by` branch uses the same decision.
 
 Direct replacement is available only when safe operations are disabled and the existing and target
 relations have the same type, the existing relation is replaceable, and the configured file format
