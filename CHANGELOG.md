@@ -2,7 +2,7 @@
 
 ### Fixes
 
-- Fix unit tests and direct `get_columns_in_query` calls failing with `PARSE_SYNTAX_ERROR` when a model's SQL ends with a semicolon ([#TBD](https://github.com/databricks/dbt-databricks/pull/TBD) resolves [#1725](https://github.com/databricks/dbt-databricks/issues/1725))
+- Fix unit tests and direct `get_columns_in_query` calls failing with `PARSE_SYNTAX_ERROR` when a model's SQL ends with a semicolon ([#1729](https://github.com/databricks/dbt-databricks/pull/1729) resolves [#1725](https://github.com/databricks/dbt-databricks/issues/1725))
 
 ## dbt-databricks 1.12.7 (Oct 12, 2026)
 
