@@ -11,8 +11,10 @@ from dbt_common.exceptions import DbtRuntimeError
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.compute import (
+    ClusterDetails,
     CommandStatus,
     CommandStatusResponse,
+    State,
 )
 from databricks.sdk.service.compute import Language as ComputeLanguage
 from databricks.sdk.service.iam import AccessControlRequest
@@ -72,7 +74,7 @@ class LibraryApi:
         }
 
 
-FAILED_CLUSTER_STATES = ("ERROR", "UNKNOWN")
+FAILED_CLUSTER_STATES = (State.ERROR, State.UNKNOWN)
 
 
 class ClusterApi:
@@ -86,106 +88,80 @@ class ClusterApi:
         self.max_cluster_start_time = max_cluster_start_time
         self.libraries = libraries
 
-    def status(self, cluster_id: str) -> str:
-        try:
-            cluster = self.workspace_client.clusters.get(cluster_id=cluster_id)
-            logger.debug(f"Cluster status: {cluster.state}")
-            return cluster.state.value if cluster.state else ""
-        except Exception as e:
-            raise DbtRuntimeError(f"Error getting status of cluster: {e}")
+    def ensure_running(self, cluster_id: str) -> None:
+        """Start the cluster if needed and wait until it is RUNNING with all libraries installed.
 
-    def _raise_if_failed(self, cluster_id: str, status: str) -> None:
-        if status in FAILED_CLUSTER_STATES:
-            raise DbtRuntimeError(f"Cluster {cluster_id} is in {status} state")
+        Sends at most one start request, and fails as soon as the cluster reaches ERROR or
+        UNKNOWN or terminates again after starting.
+        """
+        deadline = time.time() + self.max_cluster_start_time
+        start_requested = False
+        left_terminated = False
 
-    def wait_for_cluster(self, cluster_id: str, start_time: Optional[float] = None) -> None:
-        if start_time is None:
-            start_time = time.time()
+        while time.time() < deadline:
+            cluster = self._get(cluster_id)
+            state = cluster.state
+            if start_requested and state != State.TERMINATED:
+                left_terminated = True
 
-        while time.time() - start_time < self.max_cluster_start_time:
-            status_response = self.status(cluster_id)
-            self._raise_if_failed(cluster_id, status_response)
+            if state == State.RUNNING:
+                if self.libraries.all_libraries_installed(cluster_id):
+                    return
+                logger.debug("Waiting for all libraries to be installed")
+            elif state in FAILED_CLUSTER_STATES:
+                raise DbtRuntimeError(
+                    self._state_error(f"Cluster {cluster_id} is in {state.value} state", cluster)
+                )
+            elif state == State.TERMINATED:
+                if left_terminated:
+                    raise DbtRuntimeError(
+                        self._state_error(
+                            f"Cluster {cluster_id} terminated while starting", cluster
+                        )
+                    )
+                if not start_requested:
+                    self._request_start(cluster_id)
+                    start_requested = True
+            else:
+                # TERMINATING is waited out too: start fails with INVALID_STATE until it finishes.
+                logger.debug(f"Waiting for cluster in {state} state")
 
-            if status_response != "RUNNING":
-                logger.debug("Waiting for cluster to start")
-                time.sleep(5)
-                continue
-
-            libraries_status = self.libraries.get_cluster_libraries_status(cluster_id)
-            if not self.libraries.all_libraries_installed(cluster_id):
-                logger.debug(f"Waiting for all libraries to be installed: {libraries_status}")
-                time.sleep(5)
-                continue
-
-            return
+            time.sleep(5)
 
         raise DbtRuntimeError(
             f"Cluster {cluster_id} restart timed out after {self.max_cluster_start_time} seconds"
         )
 
-    def start(self, cluster_id: str) -> None:
-        """Send the start command and poll for the cluster status until it shows "Running"
-
-        Raise an exception if the restart exceeds our timeout.
-        """
-        start_time = time.time()
+    def _get(self, cluster_id: str) -> ClusterDetails:
         try:
-            self._start_cluster_if_needed(cluster_id, start_time)
-            self.wait_for_cluster(cluster_id, start_time)
+            cluster = self.workspace_client.clusters.get(cluster_id=cluster_id)
         except Exception as e:
-            self._handle_start_cluster_error(cluster_id, e)
+            raise DbtRuntimeError(f"Error getting status of cluster: {e}")
+        logger.debug(f"Cluster status: {cluster.state}")
+        return cluster
 
-    def _start_cluster_if_needed(self, cluster_id: str, start_time: float) -> None:
-        current_status = self.status(cluster_id)
-        # The Clusters API rejects start with INVALID_STATE until termination finishes.
-        while (
-            current_status == "TERMINATING"
-            and time.time() - start_time < self.max_cluster_start_time
-        ):
-            logger.debug("Waiting for cluster to finish terminating")
-            time.sleep(5)
-            current_status = self.status(cluster_id)
-        self._raise_if_failed(cluster_id, current_status)
-
-        if current_status in ["RUNNING", "PENDING"]:
-            logger.debug("Cluster already running or pending, waiting for it to be ready")
-        else:
+    def _request_start(self, cluster_id: str) -> None:
+        try:
             self.workspace_client.clusters.start(cluster_id=cluster_id)
             logger.debug(f"Started cluster {cluster_id}")
-
-    def _handle_start_cluster_error(self, cluster_id: str, error: Exception) -> None:
-        if self.status(cluster_id) not in ["RUNNING", "PENDING"]:
-            raise DbtRuntimeError(f"Error starting cluster: {error}")
-        else:
+        except Exception as e:
+            if self._get(cluster_id).state not in (State.PENDING, State.RUNNING):
+                raise DbtRuntimeError(f"Error starting cluster: {e}")
             logger.debug("Presuming race condition, waiting for cluster to start")
+
+    @staticmethod
+    def _state_error(message: str, cluster: ClusterDetails) -> str:
+        return f"{message}: {cluster.state_message}" if cluster.state_message else message
 
 
 class CommandContextApi:
-    def __init__(
-        self,
-        workspace_client: WorkspaceClient,
-        cluster_api: ClusterApi,
-        library_api: LibraryApi,
-    ):
+    def __init__(self, workspace_client: WorkspaceClient, cluster_api: ClusterApi):
         self.workspace_client = workspace_client
         self.cluster_api = cluster_api
-        self.library_api = library_api
 
     def create(self, cluster_id: str) -> str:
-        self._ensure_cluster_ready(cluster_id)
+        self.cluster_api.ensure_running(cluster_id)
         return self._create_execution_context(cluster_id)
-
-    def _ensure_cluster_ready(self, cluster_id: str) -> None:
-        current_status = self.cluster_api.status(cluster_id)
-
-        if current_status in ["TERMINATED", "TERMINATING"]:
-            logger.debug(f"Cluster {cluster_id} is not running. Attempting to restart.")
-            self.cluster_api.start(cluster_id)
-            logger.debug(f"Cluster {cluster_id} is now running.")
-        elif current_status != "RUNNING" or not self.library_api.all_libraries_installed(
-            cluster_id
-        ):
-            self.cluster_api.wait_for_cluster(cluster_id)
 
     def _create_execution_context(self, cluster_id: str, max_retries: int = 5) -> str:
         """Create execution context with retry logic for transient failures.
@@ -973,7 +949,7 @@ class DatabricksApiClient:
         workspace_client = DatabricksCredentialManager.create_from(credentials).api_client
         self.libraries = LibraryApi(workspace_client)
         self.clusters = ClusterApi(workspace_client, self.libraries)
-        self.command_contexts = CommandContextApi(workspace_client, self.clusters, self.libraries)
+        self.command_contexts = CommandContextApi(workspace_client, self.clusters)
         self.curr_user = CurrUserApi(workspace_client)
         if use_user_folder:
             self.folders: FolderApi = UserFolderApi(self.curr_user)

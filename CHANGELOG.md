@@ -2,7 +2,7 @@
 
 ### Fixes
 
-- Wait for a terminating all-purpose cluster to finish stopping before starting it for a Python model, instead of failing with `INVALID_STATE`, and fail immediately when the cluster enters an `ERROR` or `UNKNOWN` state instead of waiting out the 15-minute start timeout ([#1730](https://github.com/databricks/dbt-databricks/pull/1730) resolves [#1723](https://github.com/databricks/dbt-databricks/issues/1723))
+- Wait for a terminating all-purpose cluster to finish stopping before starting it for a Python model, instead of failing with `INVALID_STATE`, and fail immediately with the cluster's state message when it enters an `ERROR` or `UNKNOWN` state or terminates again after starting, instead of waiting out the 15-minute start timeout ([#1730](https://github.com/databricks/dbt-databricks/pull/1730) resolves [#1723](https://github.com/databricks/dbt-databricks/issues/1723))
 
 ## dbt-databricks 1.12.7 (Oct 12, 2026)
 
