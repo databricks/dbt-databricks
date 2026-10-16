@@ -91,3 +91,16 @@ view_with_tags_sql = """
 
 select cast(1 as bigint) as id
 """
+
+
+qualified_star_view_sql = """
+{{ config(materialized='view') }}
+select src.* from {{ ref('seed') }} as src;
+"""
+
+seed_with_extra_csv = """id,msg,extra
+1,hello,a
+2,goodbye,b
+2,yo,c
+3,anyway,d
+"""
