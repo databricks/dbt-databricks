@@ -3,7 +3,7 @@
 ### Features
 
 - Merge `tblproperties` additively across config hierarchy levels instead of replacing parent values (thanks @canbekley!) ([#1353](https://github.com/databricks/dbt-databricks/pull/1353))
-- Add opt-in POST_PARSE invocation telemetry for eligible commands via `connection_parameters.enable_dbt_telemetry` ([#1647](https://github.com/databricks/dbt-databricks/pull/1647))
+- Add opt-in POST_PARSE invocation telemetry for eligible commands via `connection_parameters.enable_dbt_telemetry`, sent only when the workspace's server-side telemetry flag is on; `connection_parameters.force_enable_dbt_telemetry` sends regardless of the server flag ([#1647](https://github.com/databricks/dbt-databricks/pull/1647), [#1682](https://github.com/databricks/dbt-databricks/pull/1682))
 - Add POST_RUN outcome telemetry to the opt-in invocation telemetry path ([#1648](https://github.com/databricks/dbt-databricks/pull/1648))
 
 ### Fixes
@@ -17,6 +17,7 @@
 
 ### Under the Hood
 
+- Raise the `databricks-sql-connector` floor to `>=4.2.2`, the first release that caches server feature flags per host, so the telemetry server check runs once per host instead of once per connection ([#1682](https://github.com/databricks/dbt-databricks/pull/1682))
 - Remove unused internal logging-event classes (`CredentialLoadError`/`CredentialSaveError`/`CredentialShardEvent`, `PipelineEvent`/`PipelineRefresh`/`PipelineRefreshError`, and the `ConnectionReset`/`ConnectionReuse`/`ConnectionIdleClose`/`ConnectionCreated` connection events) that have had no call sites since the cursor-management and pipeline refactors ([#1547](https://github.com/databricks/dbt-databricks/pull/1547))
 
 ## dbt-databricks 1.12.7 (Oct 12, 2026)

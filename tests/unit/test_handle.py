@@ -240,12 +240,13 @@ class TestSqlUtils:
         assert "oauth_client_id" not in args
         assert "access_token" not in args
 
-    def test_prepare_connection_arguments__strips_telemetry_flag(self):
+    @pytest.mark.parametrize("flag", ["enable_dbt_telemetry", "force_enable_dbt_telemetry"])
+    def test_prepare_connection_arguments__strips_dbt_telemetry_flags(self, flag):
         args = _prepare_connection_args(
             token="dapiabc123",
-            connection_parameters={"enable_dbt_telemetry": True},
+            connection_parameters={flag: True},
         )
-        assert "enable_dbt_telemetry" not in args
+        assert flag not in args
 
     def test_prepare_connection_arguments__kernel_pat_forwards_access_token(self):
         """use_kernel with a PAT forwards the token directly as access_token
