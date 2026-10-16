@@ -2,6 +2,7 @@ from unittest.mock import Mock, patch
 
 import freezegun
 import pytest
+from databricks.sdk.errors import InvalidState
 from databricks.sdk.service.compute import State
 from dbt_common.exceptions import DbtRuntimeError
 
@@ -74,3 +75,82 @@ class TestClusterApi:
 
         api.start("cluster_id")
         workspace_client.clusters.start.assert_called_once_with(cluster_id="cluster_id")
+
+    @pytest.fixture
+    def clock(self):
+        elapsed = [0.0]
+
+        def sleep(seconds):
+            elapsed[0] += seconds
+
+        with (
+            patch("dbt.adapters.databricks.api_client.time.time", side_effect=lambda: elapsed[0]),
+            patch("dbt.adapters.databricks.api_client.time.sleep", side_effect=sleep),
+        ):
+            yield elapsed
+
+    @staticmethod
+    def _cluster_states(workspace_client, states):
+        remaining = list(states)
+        last = [None]
+
+        def get(**kwargs):
+            if remaining:
+                last[0] = remaining.pop(0)
+            return Mock(state=State(last[0]))
+
+        def start(**kwargs):
+            if last[0] != "TERMINATED":
+                raise InvalidState(f"Cluster is in unexpected state {last[0]}")
+
+        workspace_client.clusters.get.side_effect = get
+        workspace_client.clusters.start.side_effect = start
+
+    def test_start__waits_for_terminating_cluster_before_starting(
+        self, api, workspace_client, library_api, clock
+    ):
+        self._cluster_states(
+            workspace_client, ["TERMINATING", "TERMINATING", "TERMINATED", "PENDING", "RUNNING"]
+        )
+        library_api.all_libraries_installed.return_value = True
+
+        api.start("cluster_id")
+
+        workspace_client.clusters.start.assert_called_once_with(cluster_id="cluster_id")
+
+    def test_start__terminating_cluster_started_elsewhere(
+        self, api, workspace_client, library_api, clock
+    ):
+        self._cluster_states(workspace_client, ["TERMINATING", "PENDING", "RUNNING"])
+        library_api.all_libraries_installed.return_value = True
+
+        api.start("cluster_id")
+
+        workspace_client.clusters.start.assert_not_called()
+
+    @pytest.mark.parametrize("failed_state", ["ERROR", "UNKNOWN"])
+    def test_start__terminating_cluster_enters_failed_state(
+        self, api, workspace_client, clock, failed_state
+    ):
+        self._cluster_states(workspace_client, ["TERMINATING", failed_state])
+
+        with pytest.raises(DbtRuntimeError, match=f"is in {failed_state} state"):
+            api.start("cluster_id")
+        workspace_client.clusters.start.assert_not_called()
+
+    @pytest.mark.parametrize("failed_state", ["ERROR", "UNKNOWN"])
+    def test_wait_for_cluster__fails_fast_on_failed_state(
+        self, api, workspace_client, clock, failed_state
+    ):
+        self._cluster_states(workspace_client, ["PENDING", failed_state])
+
+        with pytest.raises(DbtRuntimeError, match=f"is in {failed_state} state"):
+            api.wait_for_cluster("cluster_id")
+        assert clock[0] == 5
+
+    def test_start__terminating_wait_shares_start_timeout(self, api, workspace_client, clock):
+        self._cluster_states(workspace_client, ["TERMINATING"] * 170 + ["TERMINATED", "RESTARTING"])
+
+        with pytest.raises(DbtRuntimeError, match="restart timed out"):
+            api.start("cluster_id")
+        assert clock[0] <= api.max_cluster_start_time + 5

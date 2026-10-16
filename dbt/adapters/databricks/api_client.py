@@ -72,6 +72,9 @@ class LibraryApi:
         }
 
 
+FAILED_CLUSTER_STATES = ("ERROR", "UNKNOWN")
+
+
 class ClusterApi:
     def __init__(
         self,
@@ -91,11 +94,17 @@ class ClusterApi:
         except Exception as e:
             raise DbtRuntimeError(f"Error getting status of cluster: {e}")
 
-    def wait_for_cluster(self, cluster_id: str) -> None:
-        start_time = time.time()
+    def _raise_if_failed(self, cluster_id: str, status: str) -> None:
+        if status in FAILED_CLUSTER_STATES:
+            raise DbtRuntimeError(f"Cluster {cluster_id} is in {status} state")
+
+    def wait_for_cluster(self, cluster_id: str, start_time: Optional[float] = None) -> None:
+        if start_time is None:
+            start_time = time.time()
 
         while time.time() - start_time < self.max_cluster_start_time:
             status_response = self.status(cluster_id)
+            self._raise_if_failed(cluster_id, status_response)
 
             if status_response != "RUNNING":
                 logger.debug("Waiting for cluster to start")
@@ -119,14 +128,25 @@ class ClusterApi:
 
         Raise an exception if the restart exceeds our timeout.
         """
+        start_time = time.time()
         try:
-            self._start_cluster_if_needed(cluster_id)
-            self.wait_for_cluster(cluster_id)
+            self._start_cluster_if_needed(cluster_id, start_time)
+            self.wait_for_cluster(cluster_id, start_time)
         except Exception as e:
             self._handle_start_cluster_error(cluster_id, e)
 
-    def _start_cluster_if_needed(self, cluster_id: str) -> None:
+    def _start_cluster_if_needed(self, cluster_id: str, start_time: float) -> None:
         current_status = self.status(cluster_id)
+        # The Clusters API rejects start with INVALID_STATE until termination finishes.
+        while (
+            current_status == "TERMINATING"
+            and time.time() - start_time < self.max_cluster_start_time
+        ):
+            logger.debug("Waiting for cluster to finish terminating")
+            time.sleep(5)
+            current_status = self.status(cluster_id)
+        self._raise_if_failed(cluster_id, current_status)
+
         if current_status in ["RUNNING", "PENDING"]:
             logger.debug("Cluster already running or pending, waiting for it to be ready")
         else:
