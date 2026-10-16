@@ -2,7 +2,7 @@
 
 ### Fixes
 
-- Hide credential-like keys nested inside `session_properties` from `dbt debug` connection output ([#1724](https://github.com/databricks/dbt-databricks/issues/1724))
+- Hide credential-like keys nested inside `session_properties` from `dbt debug` connection output ([#1728](https://github.com/databricks/dbt-databricks/pull/1728) resolves [#1724](https://github.com/databricks/dbt-databricks/issues/1724))
 
 ## dbt-databricks 1.12.7 (Oct 12, 2026)
 
