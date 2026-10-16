@@ -72,6 +72,13 @@ def _redact_nested_credentials(value: Any) -> Any:
     return value
 
 
+class _DebugRedactedDict(dict[str, Any]):
+    # `dbt debug` prints `str()` of connection values. dbt-core's partial-parse profile hash uses
+    # their `pprint` form (`dict.__repr__`), which must keep every value so edits trigger a reparse.
+    def __str__(self) -> str:
+        return str(_redact_nested_credentials(self))
+
+
 @dataclass
 class DatabricksCredentials(Credentials):
     database: Optional[str] = None  # type: ignore[assignment]
@@ -262,7 +269,9 @@ class DatabricksCredentials(Credentials):
             if key in as_dict:
                 value = as_dict[key]
                 # `with_aliases=True` builds the Jinja `target` context, which keeps raw values.
-                yield key, value if with_aliases else _redact_nested_credentials(value)
+                if not with_aliases and isinstance(value, dict):
+                    value = _DebugRedactedDict(value)
+                yield key, value
 
     def _connection_keys(self, *, with_aliases: bool = False) -> tuple[str, ...]:
         # Assuming `DatabricksCredentials.connection_info(self, *, with_aliases: bool = False)`
