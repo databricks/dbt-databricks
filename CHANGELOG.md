@@ -2,7 +2,7 @@
 
 ### Fixes
 
-- Quote ephemeral CTE names so unit tests and ephemeral models no longer fail with `PARSE_SYNTAX_ERROR` when a model, source, or `this` input name contains a hyphen ([#XXXX](https://github.com/databricks/dbt-databricks/pull/XXXX), see [dbt-core#10345](https://github.com/dbt-labs/dbt-core/issues/10345))
+- Quote ephemeral CTE names so unit tests and ephemeral models no longer fail with an invalid-identifier error when a model, source, or `this` input name contains a hyphen ([#1732](https://github.com/databricks/dbt-databricks/pull/1732), see [dbt-core#10345](https://github.com/dbt-labs/dbt-core/issues/10345))
 
 ## dbt-databricks 1.12.7 (Oct 12, 2026)
 
