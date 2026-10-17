@@ -1,3 +1,9 @@
+## dbt-databricks 1.12.8 (TBD)
+
+### Fixes
+
+- Apply `tblproperties` changes before an incremental run writes to the table instead of after it, so a property such as `delta.enableChangeDataFeed` covers the run that sets it (thanks @gibkim!) ([#1716](https://github.com/databricks/dbt-databricks/pull/1716) resolves [#1121](https://github.com/databricks/dbt-databricks/issues/1121))
+
 ## dbt-databricks 1.12.7 (Oct 12, 2026)
 
 ### Fixes

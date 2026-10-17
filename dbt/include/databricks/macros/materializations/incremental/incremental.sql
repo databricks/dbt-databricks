@@ -151,6 +151,13 @@
         {{ create_table_as(True, temp_relation, compiled_code, language) }}
       {%- endcall -%}
       {%- do process_schema_changes(on_schema_change, temp_relation, existing_relation) -%}
+      {#-- Apply tblproperties before the write, so features they enable (such as change data feed) cover it --#}
+      {% if _configuration_changes is not none %}
+        {% set tblproperties = _configuration_changes.changes.get("tblproperties", None) %}
+        {% if tblproperties is not none %}
+          {% do apply_tblproperties(target_relation, tblproperties.tblproperties) %}
+        {%- endif -%}
+      {%- endif -%}
       {%- set strategy_sql_macro_func = adapter.get_incremental_strategy_macro(context, incremental_strategy) -%}
       {%- set strategy_arg_dict = ({
               'target_relation': target_relation,
@@ -186,16 +193,12 @@
       {%- endif -%}
       {% if _configuration_changes is not none %}
         {% set tags = _configuration_changes.changes.get("tags", None) %}
-        {% set tblproperties = _configuration_changes.changes.get("tblproperties", None) %}
         {% set liquid_clustering = _configuration_changes.changes.get("liquid_clustering") %}
         {% set row_filter = _configuration_changes.changes.get("row_filter") %}
         {% set constraints = _configuration_changes.changes.get("constraints") %}
         {% set column_tags = _configuration_changes.changes.get("column_tags") %}
         {% if tags is not none %}
           {% do apply_tags(target_relation, tags.set_tags) %}
-        {%- endif -%}
-        {% if tblproperties is not none %}
-          {% do apply_tblproperties(target_relation, tblproperties.tblproperties) %}
         {%- endif -%}
         {% if liquid_clustering is not none %}
           {% do apply_liquid_clustered_cols(target_relation, liquid_clustering, existing_relation) %}
