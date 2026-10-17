@@ -30,7 +30,10 @@
         {#- CREATE OR REPLACE cannot change partition_by, so use DROP + CREATE when partition_by changes -#}
         {% if configuration_changes.changes["partition_by"] %}
             {{- log('Applying REPLACE to: ' ~ existing_relation) -}}
-            {% set replace_sql = drop_and_create(existing_relation, relation, sql) %}
+            {% set replace_sql = get_mv_compatibility_rebuild_sql(existing_relation, relation, sql) %}
+            {% if replace_sql is none %}
+                {% set replace_sql = drop_and_create(existing_relation, relation, sql) %}
+            {% endif %}
         {% else %}
             {% set replace_sql = get_replace_sql(existing_relation, relation, sql) %}
         {% endif %}
