@@ -1,4 +1,5 @@
 from dataclasses import replace
+from unittest.mock import Mock
 
 import pytest
 from dbt.adapters.base.relation import FunctionConfig
@@ -263,6 +264,24 @@ class TestDatabricksRelation:
 
         relation = DatabricksRelation.from_dict(data)
         assert not relation.matches("some_database", "some_schema", "table")
+
+
+class TestAddEphemeralPrefix:
+    @pytest.mark.parametrize(
+        "name,expected",
+        [
+            ("my_model", "`__dbt__cte__my_model`"),
+            ("client-employment_delta", "`__dbt__cte__client-employment_delta`"),
+            ("weird`name", "`__dbt__cte__weird``name`"),
+        ],
+    )
+    def test_add_ephemeral_prefix__quotes_and_escapes(self, name, expected):
+        assert DatabricksRelation.add_ephemeral_prefix(name) == expected
+
+    def test_create_ephemeral_from__renders_quoted_name(self):
+        config = Mock(identifier="client-employment_delta")
+        rendered = DatabricksRelation.create_ephemeral_from(config).render()
+        assert rendered == "`__dbt__cte__client-employment_delta`"
 
 
 class TestRelationsFunctions:

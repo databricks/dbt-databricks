@@ -285,6 +285,11 @@ class DatabricksRelation(BaseRelation):
     def render(self) -> str:
         return super().render().lower()
 
+    @staticmethod
+    def add_ephemeral_prefix(name: str) -> str:
+        # Quoted so hyphens and other special characters stay one identifier (dbt-core#10345).
+        return f"`__dbt__cte__{name.replace('`', '``')}`"
+
     def get_function_config(self, model: dict[str, Any]) -> Optional[FunctionConfig]:
         if model.get("resource_type") == "function" and model.get("language") == "python":
             config = model.get("config", {})
