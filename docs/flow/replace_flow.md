@@ -1,6 +1,6 @@
 # Replace Flow
 
-_Last updated: 2026-10-09_
+_Last updated: 2026-10-18_
 
 Shared decision tree used when view, materialized-view, streaming-table, or metric-view helpers must
 replace an existing relation. Table and incremental V2 use their dedicated
@@ -19,11 +19,12 @@ flowchart TD
     TABLE -- yes --> ERROR[Raise not-implemented compiler error]
     TABLE -- no --> METRIC{Target and existing are both metric views?}
     METRIC -- yes --> METRICSQL[get_replace_metric_view_sql]
-    METRIC -- no --> SAFE{use_safer_relation_operations?}
+    METRIC -- no --> VIEW{"Existing and target are views, existing can be replaced,\nand configured file format is Delta?"}
+    VIEW -- yes --> VIEWSQL[get_replace_view_sql]
+    VIEW -- no --> SAFE{use_safer_relation_operations?}
 
     SAFE -- false --> DIRECT{"Same relation type, existing can be replaced,\nand configured file format is Delta?"}
     DIRECT -- yes --> TYPE{Existing relation type?}
-    TYPE -- view --> VIEWSQL[get_replace_view_sql]
     TYPE -- "materialized view" --> MVSQL[get_replace_materialized_view_sql]
     DIRECT -- no --> TARGETRENAME{Target can be renamed?}
     TYPE -- other --> TARGETRENAME
@@ -37,10 +38,14 @@ flowchart TD
     EXISTRENAME2 -- no --> DROP["drop_and_create:<br/>drop existing; create target"]
 ```
 
-Direct replacement is available only when safe operations are disabled and the existing and target
-relations have the same type, the existing relation is replaceable, and the configured file format
-is Delta. In practice, the supported direct branches here are views and materialized views; table
-targets have already failed at the initial guard.
+A view replacing a replaceable view always uses `CREATE OR REPLACE VIEW`, with or without
+`use_safer_relation_operations`. The statement is atomic and a view holds no data, so a backup adds
+nothing, and renaming the old view fails once an upstream relation has dropped a column it selects.
+
+Other direct replacement is available only when safe operations are disabled and the existing and
+target relations have the same type, the existing relation is replaceable, and the configured file
+format is Delta. In practice, the remaining direct branch here is materialized views; table targets
+have already failed at the initial guard.
 
 Tables and views can be renamed, except that an existing Hive metastore table is never renamed:
 Databricks rejects `ALTER TABLE ... RENAME TO` for managed Delta tables on S3. A view replacing a

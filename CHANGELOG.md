@@ -9,6 +9,7 @@
 
 ### Fixes
 
+- Replace a view with `CREATE OR REPLACE VIEW` when `use_safer_relation_operations` is on, so a view whose upstream dropped or renamed a column it used no longer fails with `UNRESOLVED_COLUMN` (thanks @shantanutheone!) ([#1733](https://github.com/databricks/dbt-databricks/pull/1733) resolves [#1714](https://github.com/databricks/dbt-databricks/issues/1714))
 - Skip `transaction: false` hooks with a warning by default, or run them without `COMMIT` when `use_non_transactional_hooks` is enabled; the inherited function/UDF materialization remains unchanged ([#1693](https://github.com/databricks/dbt-databricks/pull/1693) resolves [#1549](https://github.com/databricks/dbt-databricks/issues/1549))
 - Reapply view queries containing `*` when `view_update_via_alter` is enabled so upstream column additions appear, while retaining no-op runs for unchanged explicit projections ([#1720](https://github.com/databricks/dbt-databricks/pull/1720) resolves [#1356](https://github.com/databricks/dbt-databricks/issues/1356))
 - Let Predictive Optimization manage models with `auto_liquid_cluster` instead of running synchronous `OPTIMIZE` after materialization ([#1658](https://github.com/databricks/dbt-databricks/pull/1658) resolves [#1655](https://github.com/databricks/dbt-databricks/issues/1655))
