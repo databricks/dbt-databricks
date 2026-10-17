@@ -1,7 +1,9 @@
 import json
+import re
 from dataclasses import dataclass
 from typing import Any, ClassVar, Optional
 
+from dbt.adapters.base.column import Column
 from dbt.adapters.spark.column import SparkColumn
 
 from dbt.adapters.databricks.utils import quote
@@ -138,6 +140,36 @@ class DatabricksColumn(SparkColumn):
     @property
     def data_type(self) -> str:
         return self.translate_type(self.dtype)
+
+    @property
+    def _base_type(self) -> str:
+        return re.split(r"[\s(<]", self.dtype.strip().lower(), maxsplit=1)[0]
+
+    def is_string(self) -> bool:
+        return self._base_type in ("string", "varchar", "char")
+
+    def is_integer(self) -> bool:
+        return self._base_type in (
+            "tinyint",
+            "byte",
+            "smallint",
+            "short",
+            "int",
+            "integer",
+            "bigint",
+            "long",
+        )
+
+    def is_float(self) -> bool:
+        return self._base_type in ("float", "real", "double")
+
+    def is_numeric(self) -> bool:
+        return self._base_type in ("decimal", "dec", "numeric")
+
+    def can_expand_to(self, other_column: Column) -> bool:
+        # Databricks strings carry no size to widen; SparkColumn's check would make
+        # expand_column_types ALTER string columns to `character varying(256)`.
+        return False
 
     @property
     def quoted(self) -> str:

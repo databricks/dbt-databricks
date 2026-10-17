@@ -1,3 +1,9 @@
+## dbt-databricks 1.12.8 (TBD)
+
+### Fixes
+
+- Make `is_string()`, `is_number()`, `is_integer()`, `is_float()`, and `is_numeric()` recognize Databricks column types such as `string`, `int`, `tinyint`, and `decimal(p,s)` ([#1726](https://github.com/databricks/dbt-databricks/pull/1726) resolves [#1380](https://github.com/databricks/dbt-databricks/issues/1380))
+
 ## dbt-databricks 1.12.7 (Oct 12, 2026)
 
 ### Fixes
