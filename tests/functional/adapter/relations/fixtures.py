@@ -23,6 +23,26 @@ safer_ops_incremental_sql = """
 select 1 as id
 """
 
+safer_ops_upstream_sql = """
+{{ config(materialized='table') }}
+select 1 as id, 'a' as old_col
+"""
+
+safer_ops_upstream_renamed_sql = """
+{{ config(materialized='table') }}
+select 1 as id, 'a' as new_col
+"""
+
+safer_ops_view_sql = """
+{{ config(materialized='view') }}
+select id, old_col from {{ ref('safer_ops_upstream') }}
+"""
+
+safer_ops_view_renamed_sql = """
+{{ config(materialized='view') }}
+select id, new_col from {{ ref('safer_ops_upstream') }}
+"""
+
 replaced_relation_source_sql = """
 {{ config(materialized='table') }}
 select 1 as id union all select 2 as id union all select 3 as id

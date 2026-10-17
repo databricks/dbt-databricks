@@ -1,3 +1,9 @@
+## dbt-databricks 1.12.8 (TBD)
+
+### Fixes
+
+- Replace a view with `CREATE OR REPLACE VIEW` when `use_safer_relation_operations` is on, so a view whose upstream dropped or renamed a column it used no longer fails with `UNRESOLVED_COLUMN` (thanks @shantanutheone!) ([#1733](https://github.com/databricks/dbt-databricks/pull/1733) resolves [#1714](https://github.com/databricks/dbt-databricks/issues/1714))
+
 ## dbt-databricks 1.12.7 (Oct 12, 2026)
 
 ### Fixes
