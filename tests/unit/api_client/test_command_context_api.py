@@ -16,16 +16,10 @@ class TestCommandContextApi:
         return Mock()
 
     @pytest.fixture
-    def library_api(self):
-        return Mock()
+    def api(self, workspace_client, cluster_api):
+        return CommandContextApi(workspace_client, cluster_api)
 
-    @pytest.fixture
-    def api(self, workspace_client, cluster_api, library_api):
-        return CommandContextApi(workspace_client, cluster_api, library_api)
-
-    def test_create__exception(self, api, cluster_api, library_api, workspace_client):
-        cluster_api.status.return_value = "RUNNING"
-        library_api.all_libraries_installed.return_value = True
+    def test_create__exception(self, api, workspace_client):
         workspace_client.command_execution.create.side_effect = Exception("API Error")
 
         with pytest.raises(DbtRuntimeError) as exc_info:
@@ -33,11 +27,7 @@ class TestCommandContextApi:
 
         assert "Error creating an execution context" in str(exc_info.value)
 
-    def test_create__cluster_running(self, api, cluster_api, library_api, workspace_client):
-        cluster_api.status.return_value = "RUNNING"
-        library_api.all_libraries_installed.return_value = True
-
-        # Mock the Wait object returned by create()
+    def test_create__ensures_cluster_running(self, api, cluster_api, workspace_client):
         # The Wait object has context_id immediately available and result() waits for RUNNING
         mock_waiter = Mock()
         mock_waiter.context_id = "context_id"
@@ -49,61 +39,16 @@ class TestCommandContextApi:
         context_id = api.create("cluster_id")
 
         assert context_id == "context_id"
+        cluster_api.ensure_running.assert_called_once_with("cluster_id")
         workspace_client.command_execution.create.assert_called_once()
-        cluster_api.wait_for_cluster.assert_not_called()
 
-    def test_create__cluster_running_with_pending_libraries(
-        self, api, cluster_api, library_api, workspace_client
-    ):
-        cluster_api.status.return_value = "RUNNING"
-        library_api.all_libraries_installed.return_value = False
+    def test_create__cluster_not_ready(self, api, cluster_api, workspace_client):
+        cluster_api.ensure_running.side_effect = DbtRuntimeError("Cluster is in ERROR state")
 
-        # Mock the Wait object returned by create()
-        # The Wait object has context_id immediately available and result() waits for RUNNING
-        mock_waiter = Mock()
-        mock_waiter.context_id = "context_id"
-        mock_response = Mock()
-        mock_response.id = "context_id"
-        mock_waiter.result.return_value = mock_response
-        workspace_client.command_execution.create.return_value = mock_waiter
+        with pytest.raises(DbtRuntimeError, match="is in ERROR state"):
+            api.create("cluster_id")
 
-        context_id = api.create("cluster_id")
-
-        assert context_id == "context_id"
-        workspace_client.command_execution.create.assert_called_once()
-        cluster_api.wait_for_cluster.assert_called_once_with("cluster_id")
-
-    def test_create__cluster_terminated(self, api, cluster_api, workspace_client):
-        cluster_api.status.return_value = "TERMINATED"
-
-        # Mock the Wait object returned by create()
-        # The Wait object has context_id immediately available and result() waits for RUNNING
-        mock_waiter = Mock()
-        mock_waiter.context_id = "context_id"
-        mock_response = Mock()
-        mock_response.id = "context_id"
-        mock_waiter.result.return_value = mock_response
-        workspace_client.command_execution.create.return_value = mock_waiter
-
-        api.create("cluster_id")
-
-        cluster_api.start.assert_called_once_with("cluster_id")
-
-    def test_create__cluster_pending(self, api, cluster_api, workspace_client):
-        cluster_api.status.return_value = "PENDING"
-
-        # Mock the Wait object returned by create()
-        # The Wait object has context_id immediately available and result() waits for RUNNING
-        mock_waiter = Mock()
-        mock_waiter.context_id = "context_id"
-        mock_response = Mock()
-        mock_response.id = "context_id"
-        mock_waiter.result.return_value = mock_response
-        workspace_client.command_execution.create.return_value = mock_waiter
-
-        api.create("cluster_id")
-
-        cluster_api.wait_for_cluster.assert_called_once_with("cluster_id")
+        workspace_client.command_execution.create.assert_not_called()
 
     def test_destroy__exception(self, api, workspace_client):
         workspace_client.command_execution.destroy.side_effect = Exception("API Error")
