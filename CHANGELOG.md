@@ -8,6 +8,7 @@
 
 ### Fixes
 
+- Reapply view queries containing `*` when `view_update_via_alter` is enabled so upstream column additions appear, while retaining no-op runs for unchanged explicit projections ([#1720](https://github.com/databricks/dbt-databricks/pull/1720) resolves [#1356](https://github.com/databricks/dbt-databricks/issues/1356))
 - Let Predictive Optimization manage models with `auto_liquid_cluster` instead of running synchronous `OPTIMIZE` after materialization ([#1658](https://github.com/databricks/dbt-databricks/pull/1658) resolves [#1655](https://github.com/databricks/dbt-databricks/issues/1655))
 - Skip unnecessary Unity Catalog constraint metadata queries for incremental models without enforced contracts ([#1643](https://github.com/databricks/dbt-databricks/pull/1643) resolves [#1641](https://github.com/databricks/dbt-databricks/issues/1641))
 - Recreate materialized views when query schema drifts, honoring `on_configuration_change` ([#1621](https://github.com/databricks/dbt-databricks/pull/1621) resolves [#1359](https://github.com/databricks/dbt-databricks/issues/1359))

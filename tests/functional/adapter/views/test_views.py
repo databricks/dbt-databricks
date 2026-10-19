@@ -3,7 +3,7 @@ from agate import Row
 from dbt.artifacts.schemas.results import RunStatus
 from dbt.tests import util
 
-from tests.functional.adapter.fixtures import RequiresDescribeAsJsonCapabilityMixin
+from tests.functional.adapter.fixtures import RequiresDescribeAsJsonCapabilityMixin, RerunSafeMixin
 from tests.functional.adapter.views import fixtures
 
 
@@ -296,7 +296,15 @@ class TestUpdateViewViaAlterTblproperties(BaseUpdateTblProperties):
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestUpdateViewViaAlterColumnComments(BaseUpdateColumnComments):
+class TestUpdateViewViaAlterColumnComments(RerunSafeMixin, BaseUpdateColumnComments):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"initial_view.sql": fixtures.altered_view_sql, "schema.yml": fixtures.schema_yml}
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("initial_view", "seed")
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
@@ -576,3 +584,43 @@ class TestHiveViewUpdateViaAlterError(HiveViewUpdateViaAlterError):
                 "+view_update_via_alter": True,
             },
         }
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestUpdateViewViaAlterUpstreamSchema(RerunSafeMixin, BaseUpdateView):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("initial_view", "seed")
+
+    @pytest.fixture(autouse=True)
+    def reset_seed_file(self, project):
+        util.write_file(fixtures.seed_csv, "seeds", "seed.csv")
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "+view_update_via_alter": True,
+                "+persist_docs": {"relation": True, "columns": True},
+            },
+        }
+
+    @pytest.mark.parametrize(
+        "view_sql",
+        [
+            pytest.param(fixtures.view_sql, id="star"),
+            pytest.param(fixtures.qualified_star_view_sql, id="qualified-star"),
+        ],
+    )
+    def test_view_update_with_upstream_schema_change(self, project, view_sql):
+        util.write_file(view_sql, "models", "initial_view.sql")
+        util.run_dbt(["build"])
+        util.write_file(fixtures.seed_with_extra_csv, "seeds", "seed.csv")
+        util.run_dbt(["seed", "--full-refresh"])
+        util.run_dbt(["run"])
+
+        columns = project.run_sql("describe {database}.{schema}.initial_view", fetch="all")
+
+        assert [column.col_name for column in columns] == ["id", "msg", "extra"]
+        assert columns[0][2] == "This is the id column"
