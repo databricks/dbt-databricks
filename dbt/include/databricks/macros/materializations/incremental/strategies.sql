@@ -306,19 +306,10 @@ where {{ incremental_predicates }}
     )
   %}
 
-  {#
-    Merge actions can be set explicitly by providing a multiline code block
-    in the model config. In that case all matched/not matched actions settings
-    are ignored.
-  #}
-  {%- set merge_actions_explicit = config.get('merge_actions_explicit', '') | trim(' \n\t') -%}
+  {#-- An explicit null must fall back to the default clauses, but `None | trim` renders 'None'. --#}
+  {%- set merge_actions_explicit = (config.get('merge_actions_explicit') or '') | trim(' \n\t') -%}
   {%- set merge_actions_explicit_is_set = merge_actions_explicit | length > 0 -%}
 
-  {#
-    Explicit merge actions fully replace the generated matched/not matched
-    clauses, so any of the individual action configs would be silently ignored.
-    Warn the user when such a conflicting config is detected.
-  #}
   {%- if merge_actions_explicit_is_set -%}
     {%- set ignored_configs = [] -%}
     {%- if skip_matched_step -%}{%- do ignored_configs.append('skip_matched_step') -%}{%- endif -%}
