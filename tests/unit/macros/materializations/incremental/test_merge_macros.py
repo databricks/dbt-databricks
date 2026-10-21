@@ -4,6 +4,8 @@ import pytest
 
 from tests.unit.macros.base import MacroTestBase
 
+WARN_PREFIX = "merge_actions_explicit is set; ignoring conflicting merge action config(s): "
+
 
 class TestGetMergeSQL(MacroTestBase):
     @pytest.fixture(scope="class")
@@ -171,17 +173,51 @@ class TestMergeActionsExplicit(MacroTestBase):
         config["merge_actions_explicit"] = "when matched then FAKE_ACTION"
         config[key] = value
         self.render_merge_sql(template, config)
-        context["exceptions"].warn.assert_called_once()
-        assert context["exceptions"].warn.call_args.args[0].endswith(f": {key}")
+        context["exceptions"].warn.assert_called_once_with(WARN_PREFIX + key)
+
+    @pytest.mark.parametrize(
+        "key, value",
+        [
+            ("skip_matched_step", False),
+            ("skip_matched_step", "false"),
+            ("skip_not_matched_step", False),
+        ],
+    )
+    def test_false_skip_flags_do_not_warn(self, template, config, context, key, value):
+        config["merge_actions_explicit"] = "when matched then FAKE_ACTION"
+        config[key] = value
+        self.render_merge_sql(template, config)
+        context["exceptions"].warn.assert_not_called()
+
+    @pytest.mark.parametrize("value", [None, "", "   \n\t  "])
+    def test_unset_explicit_actions_do_not_warn(self, template, config, context, value):
+        config["merge_actions_explicit"] = value
+        config["matched_condition"] = "src.x = 1"
+        sql = self.clean_sql(self.render_merge_sql(template, config))
+        context["exceptions"].warn.assert_not_called()
+        assert "when matched and (src.x = 1) then update set" in sql
 
     def test_multiple_conflicting_configs_listed_in_one_warning(self, template, config, context):
         config["merge_actions_explicit"] = "when matched then FAKE_ACTION"
         config["skip_not_matched_step"] = True
         config["matched_condition"] = "1 = 1"
         self.render_merge_sql(template, config)
-        context["exceptions"].warn.assert_called_once()
-        assert (
-            context["exceptions"]
-            .warn.call_args.args[0]
-            .endswith(": skip_not_matched_step, matched_condition")
+        context["exceptions"].warn.assert_called_once_with(
+            WARN_PREFIX + "skip_not_matched_step, matched_condition"
+        )
+
+    def test_all_conflicting_configs_listed_in_order(self, template, config, context):
+        config.update(
+            merge_actions_explicit="when matched then FAKE_ACTION",
+            skip_matched_step=True,
+            skip_not_matched_step=True,
+            matched_condition="1 = 1",
+            not_matched_condition="1 = 1",
+            not_matched_by_source_action="delete",
+            not_matched_by_source_condition="1 = 1",
+        )
+        self.render_merge_sql(template, config)
+        context["exceptions"].warn.assert_called_once_with(
+            WARN_PREFIX + "skip_matched_step, skip_not_matched_step, matched_condition, "
+            "not_matched_condition, not_matched_by_source_action, not_matched_by_source_condition"
         )
