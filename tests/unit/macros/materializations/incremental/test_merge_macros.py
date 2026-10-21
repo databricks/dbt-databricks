@@ -141,28 +141,47 @@ class TestMergeActionsExplicit(MacroTestBase):
         # Default path renders "then update set *"; explicit block must replace it entirely
         assert "then update set" not in sql
 
-    @pytest.mark.parametrize("value", ["", "   \n\t  "])
+    @pytest.mark.parametrize("value", [None, "", "   \n\t  "])
     def test_blank_explicit_actions_fall_back_to_default(self, template, config, value):
-        """Empty / whitespace-only config is trimmed away and the default path is used."""
+        """Null / empty / whitespace-only config falls back to the default path."""
         config["merge_actions_explicit"] = value
         sql = self.clean_sql(self.render_merge_sql(template, config))
-        assert "when matched" in sql
-        assert "then update set" in sql
+        assert "when matched then update set" in sql
+        assert "when not matched then insert" in sql
+        assert "none" not in sql
+
+    def test_no_conflicting_configs_no_warning(self, template, config, context):
+        config["merge_actions_explicit"] = "when matched then FAKE_ACTION"
+        self.render_merge_sql(template, config)
+        context["exceptions"].warn.assert_not_called()
 
     @pytest.mark.parametrize(
-        "extra_config, expect_warning",
+        "key, value",
         [
-            ({}, False),
-            ({"matched_condition": "1 = 1"}, True),
-            ({"skip_matched_step": "true"}, True),
-            ({"not_matched_by_source_action": "delete"}, True),
+            ("skip_matched_step", True),
+            ("skip_matched_step", "true"),
+            ("skip_not_matched_step", True),
+            ("matched_condition", "1 = 1"),
+            ("not_matched_condition", "1 = 1"),
+            ("not_matched_by_source_action", "delete"),
+            ("not_matched_by_source_condition", "1 = 1"),
         ],
     )
-    def test_conflicting_configs_warn(
-        self, template, config, context, extra_config, expect_warning
-    ):
-        """A conflicting individual action config triggers exactly one warning."""
+    def test_conflicting_config_warns(self, template, config, context, key, value):
         config["merge_actions_explicit"] = "when matched then FAKE_ACTION"
-        config.update(extra_config)
+        config[key] = value
         self.render_merge_sql(template, config)
-        assert context["exceptions"].warn.called is expect_warning
+        context["exceptions"].warn.assert_called_once()
+        assert context["exceptions"].warn.call_args.args[0].endswith(f": {key}")
+
+    def test_multiple_conflicting_configs_listed_in_one_warning(self, template, config, context):
+        config["merge_actions_explicit"] = "when matched then FAKE_ACTION"
+        config["skip_not_matched_step"] = True
+        config["matched_condition"] = "1 = 1"
+        self.render_merge_sql(template, config)
+        context["exceptions"].warn.assert_called_once()
+        assert (
+            context["exceptions"]
+            .warn.call_args.args[0]
+            .endswith(": skip_not_matched_step, matched_condition")
+        )
