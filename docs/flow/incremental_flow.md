@@ -1,6 +1,6 @@
 # Incremental Flow
 
-_Last updated: 2026-08-20_
+_Last updated: 2026-10-13_
 
 > Two diagrams follow: **Existing** is the default path, **New** is used when the
 > `use_materialization_v2` behavior flag is enabled. See [flow/README.md](README.md) for what the
@@ -40,7 +40,7 @@ flowchart LR
     NEWCFG --> GRANTS[Apply grants]
     REPLACEDOCS --> GRANTS
     DOCS --> GRANTS
-    GRANTS --> OPT[Run optimize]
+    GRANTS --> OPT[Run optimize for zorder / liquid_clustered_by]
     OPT --> POST[Run post-hooks]
     POST --> STATIC[Restore static overwrite mode for non-full-refresh insert_overwrite]
 ```
@@ -64,7 +64,7 @@ flowchart LR
     EXIST -- no --> CREATE["create_table_at target:<br/>create schema; constraints; table tags;<br/>column tags; insert intermediate"]
     EXIST -- yes --> SHOULDREPLACE{"Existing is DLT, a view,\nor full refresh?"}
     SHOULDREPLACE -- yes --> SAFEPATH{"use_safer_relation_operations and\nexisting can be renamed?"}
-    SAFEPATH -- yes --> SAFE["safe_relation_replace:<br/>create_table_at staging; back up existing;<br/>rename staging; drop backup; drop intermediate"]
+    SAFEPATH -- yes --> SAFE["safe_relation_replace:<br/>create_table_at staging; back up existing;<br/>rename staging; drop backup;<br/>rename staged PK/FK; drop intermediate"]
     SAFEPATH -- no --> DROPNEEDED{"Existing is not replaceable Delta/Iceberg,\nor is a shallow clone?"}
     DROPNEEDED -- yes --> DROP[Drop existing relation]
     DROPNEEDED -- no --> CREATE
@@ -78,7 +78,7 @@ flowchart LR
     CREATE --> GRANTS[Apply grants]
     SAFE --> GRANTS
     MERGE --> GRANTS
-    GRANTS --> OPT[Run optimize]
+    GRANTS --> OPT[Run optimize for zorder / liquid_clustered_by]
     OPT --> PYCLEAN{Python model?}
     PYCLEAN -- yes --> CLEAN[Drop intermediate relation]
     PYCLEAN -- no --> POST[Run post-hooks]
@@ -92,3 +92,6 @@ the incremental branch even when its configuration changes. Safe staging is sele
 non-replaceable relation or shallow clone is dropped before `create_table_at`. Unlike the Existing
 path, V2 does not call `persist_docs` — relation and column comments are handled via
 `apply_config_changeset` or the create/insert path.
+
+Safe staging renames tables, which Databricks rejects for Hive metastore managed Delta tables on
+S3 unless `spark.databricks.delta.alterTable.rename.enabledOnAWS` is set on the cluster.

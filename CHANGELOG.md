@@ -3,11 +3,15 @@
 ### Features
 
 - Add `merge_actions_explicit` model config for the `merge` incremental strategy, allowing the full `WHEN … THEN` block to be supplied as a raw SQL string. This enables multiple `WHEN MATCHED` clauses, conditional `DELETE`, and `WHEN NOT MATCHED BY SOURCE` in a single merge — use-cases not expressible through the individual `skip_matched_step` / `matched_condition` / `not_matched_by_source_action` knobs. When it is set, those individual action configs are ignored and a warning is emitted if any of them are also supplied (thanks @mi-volodin!) ([#1018](https://github.com/databricks/dbt-databricks/pull/1018))
-- Add opt-in POST_PARSE invocation telemetry for eligible commands via `connection_parameters.enable_dbt_telemetry` ([#1647](https://github.com/databricks/dbt-databricks/pull/1647))
+- Merge `tblproperties` additively across config hierarchy levels instead of replacing parent values (thanks @canbekley!) ([#1353](https://github.com/databricks/dbt-databricks/pull/1353))
+- Add opt-in POST_PARSE invocation telemetry for eligible commands via `connection_parameters.enable_dbt_telemetry`, sent only when the workspace's server-side telemetry flag is on; `connection_parameters.force_enable_dbt_telemetry` sends regardless of the server flag ([#1647](https://github.com/databricks/dbt-databricks/pull/1647), [#1682](https://github.com/databricks/dbt-databricks/pull/1682))
 - Add POST_RUN outcome telemetry to the opt-in invocation telemetry path ([#1648](https://github.com/databricks/dbt-databricks/pull/1648))
+- Add aggregate model configuration statistics to the opt-in POST_PARSE telemetry event ([#1665](https://github.com/databricks/dbt-databricks/pull/1665))
 
 ### Fixes
 
+- Reapply view queries containing `*` when `view_update_via_alter` is enabled so upstream column additions appear, while retaining no-op runs for unchanged explicit projections ([#1720](https://github.com/databricks/dbt-databricks/pull/1720) resolves [#1356](https://github.com/databricks/dbt-databricks/issues/1356))
+- Let Predictive Optimization manage models with `auto_liquid_cluster` instead of running synchronous `OPTIMIZE` after materialization ([#1658](https://github.com/databricks/dbt-databricks/pull/1658) resolves [#1655](https://github.com/databricks/dbt-databricks/issues/1655))
 - Skip unnecessary Unity Catalog constraint metadata queries for incremental models without enforced contracts ([#1643](https://github.com/databricks/dbt-databricks/pull/1643) resolves [#1641](https://github.com/databricks/dbt-databricks/issues/1641))
 - Recreate materialized views when query schema drifts, honoring `on_configuration_change` ([#1621](https://github.com/databricks/dbt-databricks/pull/1621) resolves [#1359](https://github.com/databricks/dbt-databricks/issues/1359))
 - Warn when documented columns are missing from V1 and V2 table and incremental models, and honor `persist_docs.columns` for V2 column comments ([#1563](https://github.com/databricks/dbt-databricks/pull/1563) ports [dbt-adapters#1684](https://github.com/dbt-labs/dbt-adapters/pull/1684), resolving [dbt-adapters#1690](https://github.com/dbt-labs/dbt-adapters/issues/1690)).
@@ -16,7 +20,46 @@
 
 ### Under the Hood
 
+- Raise the `databricks-sql-connector` floor to `>=4.2.2`, the first release that caches server feature flags per host, so the telemetry server check runs once per host instead of once per connection ([#1682](https://github.com/databricks/dbt-databricks/pull/1682))
 - Remove unused internal logging-event classes (`CredentialLoadError`/`CredentialSaveError`/`CredentialShardEvent`, `PipelineEvent`/`PipelineRefresh`/`PipelineRefreshError`, and the `ConnectionReset`/`ConnectionReuse`/`ConnectionIdleClose`/`ConnectionCreated` connection events) that have had no call sites since the cursor-management and pipeline refactors ([#1547](https://github.com/databricks/dbt-databricks/pull/1547))
+
+## dbt-databricks 1.12.7 (Oct 12, 2026)
+
+### Fixes
+
+- Close a model's session without holding the connection manager lock, so a slow session close no longer stalls other threads' queries and can't leave a cluster idle long enough to auto-terminate mid-run (thanks @vinay-srivvina!) ([#1706](https://github.com/databricks/dbt-databricks/pull/1706))
+- Stop incremental runs from dropping and re-adding a foreign key whenever another schema in the same catalog has a constraint with the same name ([#1702](https://github.com/databricks/dbt-databricks/pull/1702))
+- Replace a Hive metastore table with a view without renaming the table, so view models no longer fail on AWS with `DELTA_ALTER_TABLE_RENAME_NOT_ALLOWED` ([#1701](https://github.com/databricks/dbt-databricks/pull/1701))
+- Fix unnamed primary and foreign keys churning on every incremental run, and two or more unnamed foreign keys to the same parent failing with `DELTA_CONSTRAINT_ALREADY_EXISTS`. An unnamed PK/FK now gets the same deterministic name on every create and incremental path (V1 and V2, including `use_safer_relation_operations` replaces), so the incremental constraint diff is a no-op. Unnamed keys switch from server-assigned names to dbt-generated names on their next incremental run. Re-running a model with `use_safer_relation_operations` no longer fails with `CONSTRAINT_ALREADY_EXISTS_IN_SCHEMA` on its own primary key. ([#1561](https://github.com/databricks/dbt-databricks/pull/1561) resolves [#1091](https://github.com/databricks/dbt-databricks/issues/1091), [#1333](https://github.com/databricks/dbt-databricks/issues/1333) and [#1344](https://github.com/databricks/dbt-databricks/issues/1344))
+- Emit constraint `ALTER` statements in a stable order on incremental runs instead of an order that varies between runs ([#1698](https://github.com/databricks/dbt-databricks/pull/1698))
+- Stop dropping and re-adding a `custom` constraint that declares a primary key on every incremental run, which also dropped foreign keys that reference it ([#1700](https://github.com/databricks/dbt-databricks/pull/1700) resolves [#1699](https://github.com/databricks/dbt-databricks/issues/1699))
+- Make a replaced relation and its new type visible to the model's post-hooks and the rest of the run when a view, materialized view, streaming table, or metric view model replaces an existing relation ([#1704](https://github.com/databricks/dbt-databricks/pull/1704))
+
+### Under the Hood
+
+- **BREAKING for custom macro overrides only:** Snapshots no longer call `create_indexes` or `adapter.commit()`, both no-ops on Databricks, with no behavior change otherwise. Overrides of `create_indexes` or `get_create_index_sql` are no longer called for first-run snapshots ([#1691](https://github.com/databricks/dbt-databricks/pull/1691))
+- **BREAKING for custom macro overrides only:** Seeds no longer branch on `use_materialization_v2`, with no behavior change for either flag value. Overrides of the removed `create_seed_v1`/`create_seed_v2` macros, and of `create_indexes` for seeds, are no longer called ([#1690](https://github.com/databricks/dbt-databricks/pull/1690))
+
+## dbt-databricks 1.12.6 (Oct 1, 2026)
+
+### Features
+
+- Support `auth_type: env-oidc` and `auth_type: file-oidc` for authenticating via workload identity federation, with a new `oidc_token_filepath` profile config for the latter (thanks @Gerrit-K!) ([#1666](https://github.com/databricks/dbt-databricks/pull/1666))
+
+### Fixes
+
+- Handle `SHOW GRANTS` result columns case-insensitively so grant reconciliation does not crash when connectors return lowercase names (thanks @TangoEnSkai!) ([#1650](https://github.com/databricks/dbt-databricks/pull/1650) resolves [#782](https://github.com/databricks/dbt-databricks/issues/782))
+- Keep the existing table when a V1 view model that replaces it fails to build, matching V2 behavior ([#1688](https://github.com/databricks/dbt-databricks/pull/1688))
+- Use in-place `ALTER` for an ordinary view only when the existing relation is also an ordinary view ([#1687](https://github.com/databricks/dbt-databricks/pull/1687))
+- Apply only changed table- and column-level `databricks_tags` to materialized views and streaming tables while preserving tags across replacements ([#1686](https://github.com/databricks/dbt-databricks/pull/1686))
+- Refresh a materialized view without an automatic schedule when a run applies in-place configuration changes, instead of leaving its data stale ([#1686](https://github.com/databricks/dbt-databricks/pull/1686))
+
+### Under the Hood
+
+- Raise the `dbt-core` upper bound to `<1.12.6` to include dbt-core 1.12.4 and 1.12.5 ([#1689](https://github.com/databricks/dbt-databricks/pull/1689))
+- Emit only changed `databricks_tags` keys in `ALTER … SET TAGS` ([#1667](https://github.com/databricks/dbt-databricks/pull/1667))
+- Emit only changed column-level `databricks_tags` keys in `ALTER COLUMN … SET TAGS`, without unsetting remote-only tags ([#1668](https://github.com/databricks/dbt-databricks/pull/1668))
+- Document serverless environment configuration for Python models (thanks @TangoEnSkai!) ([#1649](https://github.com/databricks/dbt-databricks/pull/1649) resolves [#1055](https://github.com/databricks/dbt-databricks/issues/1055))
 
 ## dbt-databricks 1.12.5 (Sep 1, 2026)
 
