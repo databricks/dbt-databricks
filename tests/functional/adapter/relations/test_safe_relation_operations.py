@@ -78,30 +78,85 @@ class TestSaferOpsAsBoolIncremental(RerunSafeMixin, MaterializationV2Mixin):
 
 @pytest.mark.skip_profile("databricks_cluster")
 class TestSaferOpsReplacesViewAfterUpstreamColumnRename(RerunSafeMixin, MaterializationV2Mixin):
+    file_format = "delta"
+    upstream_type = "table"
+
     @pytest.fixture(scope="class")
     def models(self):
-        return {
-            "safer_ops_upstream.sql": fixtures.safer_ops_upstream_sql,
-            "safer_ops_view.sql": fixtures.safer_ops_view_sql,
-        }
+        models = {"safer_ops_view.sql": fixtures.safer_ops_view_sql}
+        if self.upstream_type == "table":
+            models["safer_ops_upstream.sql"] = fixtures.safer_ops_upstream_sql
+        return models
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        if self.upstream_type == "seed":
+            return {"safer_ops_upstream.csv": fixtures.safer_ops_upstream_csv}
+        return {}
 
     @pytest.fixture(scope="class")
     def relations_to_reset(self):
-        return ("safer_ops_view", "safer_ops_upstream")
+        return (
+            "safer_ops_view",
+            "safer_ops_view__dbt_stg",
+            "safer_ops_view__dbt_backup",
+            "safer_ops_upstream",
+        )
 
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
             "flags": {"use_materialization_v2": True},
-            "models": {"+use_safer_relation_operations": True},
+            "models": {"+use_safer_relation_operations": True, "+file_format": self.file_format},
         }
 
     def test_view_is_replaced(self, project):
-        util.run_dbt(["run"])
-        util.write_file(fixtures.safer_ops_upstream_renamed_sql, "models", "safer_ops_upstream.sql")
+        if self.upstream_type == "seed":
+            util.write_file(fixtures.safer_ops_upstream_csv, "seeds", "safer_ops_upstream.csv")
+        util.run_dbt(["build"])
+        if self.upstream_type == "seed":
+            util.write_file(
+                fixtures.safer_ops_upstream_renamed_csv, "seeds", "safer_ops_upstream.csv"
+            )
+        else:
+            util.write_file(
+                fixtures.safer_ops_upstream_renamed_sql, "models", "safer_ops_upstream.sql"
+            )
         util.write_file(fixtures.safer_ops_view_renamed_sql, "models", "safer_ops_view.sql")
-        util.run_dbt(["run"])
+        util.run_dbt(["build", "--full-refresh"] if self.upstream_type == "seed" else ["run"])
         rows = project.run_sql(
             "select id, new_col from {database}.{schema}.safer_ops_view", fetch="all"
         )
         assert [tuple(row) for row in rows] == [(1, "a")]
+
+        util.write_file(fixtures.flip_relation_as_invalid_view_sql, "models", "safer_ops_view.sql")
+        util.run_dbt(["run", "-s", "safer_ops_view"], expect_pass=False)
+        rows = project.run_sql(
+            "select id, new_col from {database}.{schema}.safer_ops_view", fetch="all"
+        )
+        assert [tuple(row) for row in rows] == [(1, "a")]
+        artifacts = project.run_sql(
+            "select table_name from {database}.information_schema.tables "
+            "where table_schema = '{schema}' and table_name in "
+            "('safer_ops_view__dbt_stg', 'safer_ops_view__dbt_backup')",
+            fetch="all",
+        )
+        assert not artifacts
+
+
+class TestSaferOpsReplacesParquetViewAfterUpstreamColumnRename(
+    TestSaferOpsReplacesViewAfterUpstreamColumnRename
+):
+    file_format = "parquet"
+
+
+class TestSaferOpsReplacesViewAfterSeedColumnRename(
+    TestSaferOpsReplacesViewAfterUpstreamColumnRename
+):
+    upstream_type = "seed"
+
+
+class TestSaferOpsReplacesParquetViewAfterSeedColumnRename(
+    TestSaferOpsReplacesViewAfterSeedColumnRename
+):
+    file_format = "parquet"

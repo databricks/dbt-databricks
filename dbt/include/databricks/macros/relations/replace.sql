@@ -35,7 +35,7 @@
   {% set is_replaceable = existing_relation.type == target_relation.type and existing_relation.can_be_replaced and file_format == "delta" %}
 
   {#- Renaming a view makes Databricks re-resolve its old query, which fails once an upstream column is gone, and CREATE OR REPLACE VIEW is already atomic. -#}
-  {% if is_replaceable and existing_relation.is_view %}
+  {% if existing_relation.is_view and target_relation.is_view %}
     {{ return(get_replace_view_sql(target_relation, sql)) }}
   {% endif %}
 

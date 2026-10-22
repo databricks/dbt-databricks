@@ -97,10 +97,12 @@ class TestGetReplaceSql(MacroTestBase):
 
     @pytest.mark.parametrize("safe_replace", [False, True])
     @pytest.mark.parametrize("database", ["hive_metastore", "main"])
+    @pytest.mark.parametrize("file_format", ["delta", "parquet"])
     def test_view_to_view_uses_create_or_replace(
-        self, template_bundle, config, context, database, safe_replace
+        self, template_bundle, config, context, database, safe_replace, file_format
     ):
         config["use_safer_relation_operations"] = safe_replace
+        context["adapter"].resolve_file_format.return_value = file_format
         existing = DatabricksRelation.create(
             database=database, schema="schema", identifier="model", type="view"
         )

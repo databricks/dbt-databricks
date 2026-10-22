@@ -1,6 +1,6 @@
 # Replace Flow
 
-_Last updated: 2026-10-18_
+_Last updated: 2026-10-22_
 
 Shared decision tree used when view, materialized-view, streaming-table, or metric-view helpers must
 replace an existing relation. Table and incremental V2 use their dedicated
@@ -19,7 +19,7 @@ flowchart TD
     TABLE -- yes --> ERROR[Raise not-implemented compiler error]
     TABLE -- no --> METRIC{Target and existing are both metric views?}
     METRIC -- yes --> METRICSQL[get_replace_metric_view_sql]
-    METRIC -- no --> VIEW{"Existing and target are views, existing can be replaced,\nand configured file format is Delta?"}
+    METRIC -- no --> VIEW{"Existing and target are ordinary views?"}
     VIEW -- yes --> VIEWSQL[get_replace_view_sql]
     VIEW -- no --> SAFE{use_safer_relation_operations?}
 
@@ -38,9 +38,10 @@ flowchart TD
     EXISTRENAME2 -- no --> DROP["drop_and_create:<br/>drop existing; create target"]
 ```
 
-A view replacing a replaceable view always uses `CREATE OR REPLACE VIEW`, with or without
-`use_safer_relation_operations`. The statement is atomic and a view holds no data, so a backup adds
-nothing, and renaming the old view fails once an upstream relation has dropped a column it selects.
+An ordinary view replacing another ordinary view always uses `CREATE OR REPLACE VIEW`, regardless
+of the configured file format or `use_safer_relation_operations`. This avoids renaming the old view,
+which fails once an upstream relation has dropped a column it selects. Replacement does not
+guarantee continuity of Unity Catalog object identity or lineage.
 
 Other direct replacement is available only when safe operations are disabled and the existing and
 target relations have the same type, the existing relation is replaceable, and the configured file

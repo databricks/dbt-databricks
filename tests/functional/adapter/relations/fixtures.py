@@ -24,14 +24,18 @@ select 1 as id
 """
 
 safer_ops_upstream_sql = """
-{{ config(materialized='table') }}
+{{ config(materialized='table', file_format='delta') }}
 select 1 as id, 'a' as old_col
 """
 
 safer_ops_upstream_renamed_sql = """
-{{ config(materialized='table') }}
+{{ config(materialized='table', file_format='delta') }}
 select 1 as id, 'a' as new_col
 """
+
+safer_ops_upstream_csv = "id,old_col\n1,a\n"
+
+safer_ops_upstream_renamed_csv = "id,new_col\n1,a\n"
 
 safer_ops_view_sql = """
 {{ config(materialized='view') }}
