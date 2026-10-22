@@ -1,6 +1,6 @@
 # View Flow
 
-_Last updated: 2026-10-14_
+_Last updated: 2026-10-22_
 
 > Two diagrams follow: **V1** is the default path, **V2** is used when the `use_materialization_v2`
 > behavior flag is enabled. See [flow/README.md](README.md) for what the flag is and how the
@@ -21,8 +21,9 @@ flowchart LR
     DOCS --> POST[Run post-hooks]
 ```
 
-V1 calls `run_hooks(pre_hooks)` without the outside/inside split used by seed and snapshot. For a
-different existing relation type, it uses the shared [replace flow](replace_flow.md).
+V1 and V2 both call the shared `run_pre_hooks` / `run_post_hooks` helpers; see [hook transaction
+categories](README.md#hook-transaction-categories). For a different existing relation type, V1
+uses the shared [replace flow](replace_flow.md).
 
 ## V2 View Flow
 
