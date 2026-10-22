@@ -1,13 +1,3 @@
-"""Server-observable behavior of use_safer_relation_operations.
-
-* The staging-swap mints a new UC object on each replace (the Delta id changes), which
-  breaks history/lineage.
-* incremental.sql reads the config with `| as_bool`, so a YAML string "false" is correctly
-  treated as False (in-place, stable Delta id).
-* A view is replaced even after its upstream dropped a column the old view selects, because
-  view-to-view replaces use CREATE OR REPLACE VIEW instead of renaming the old view.
-"""
-
 import pytest
 from dbt.tests import util
 
@@ -40,11 +30,11 @@ class TestSaferOpsMintsNewObject(RerunSafeMixin, MaterializationV2Mixin):
     def test_replace_mints_new_object(self, project):
         util.run_dbt(["run"])
         first_id = _describe_detail(project, "safer_ops_model")["id"]
-        util.run_dbt(["run"])  # second run replaces via staging-swap
+        util.run_dbt(["run"])
         second_id = _describe_detail(project, "safer_ops_model")["id"]
         assert first_id != second_id, (
-            "use_safer_relation_operations should mint a new UC object on replace "
-            f"(history broken); Delta id stayed {first_id}"
+            "use_safer_relation_operations should change the Delta id on replacement; "
+            f"id stayed {first_id}"
         )
 
 
