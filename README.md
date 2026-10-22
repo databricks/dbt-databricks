@@ -75,6 +75,7 @@ These following quick starts will get you up and running with the `dbt-databrick
 - [Set up your dbt project with Databricks](https://docs.getdbt.com/guides/set-up-your-databricks-dbt-project)
 - Using dbt Cloud with Databricks ([Azure](https://docs.microsoft.com/en-us/azure/databricks/integrations/prep/dbt-cloud) | [AWS](https://docs.databricks.com/integrations/prep/dbt-cloud.html))
 - [Submitting Python models as Databricks Workflows](https://github.com/databricks/dbt-databricks/blob/main/docs/guides/workflow-job-submission.md)
+- [Configuring serverless environments for Python models](https://github.com/databricks/dbt-databricks/blob/main/docs/guides/workflow-job-submission.md#serverless-environments)
 - [Running a dbt project as a Databricks job](https://github.com/databricks/dbt-databricks/blob/main/docs/guides/databricks-jobs.md)
 - [Using Unity Catalog with dbt-databricks](https://github.com/databricks/dbt-databricks/blob/main/docs/guides/uc.md)
 - [Continuous integration in dbt](https://docs.getdbt.com/docs/deploy/continuous-integration)

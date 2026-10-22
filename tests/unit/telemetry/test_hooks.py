@@ -37,7 +37,7 @@ def _enable_hooks(monkeypatch, coord=None):
     monkeypatch.setattr(hooks, "coordinator", lambda: coord)
     monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-1")
     monkeypatch.setattr(hooks, "DatabricksCredentials", object)
-    monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: True)
+    monkeypatch.setattr(hooks, "is_collection_enabled_for_invocation", lambda _: True)
     return coord
 
 
@@ -45,13 +45,15 @@ def test_opt_out_skips_parse_and_transport(monkeypatch):
     coord = Mock()
     build = Mock()
     monkeypatch.setattr(hooks, "coordinator", lambda: coord)
-    monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: False)
+    monkeypatch.setattr(hooks, "is_collection_enabled_for_invocation", lambda _: False)
     monkeypatch.setattr(hooks, "DatabricksCredentials", object)
     monkeypatch.setattr(hooks.builder, "build_post_parse_log", build)
     adapter = SimpleNamespace(config=SimpleNamespace(credentials=SimpleNamespace()))
 
     hooks.on_post_parse(adapter, SimpleNamespace())
-    hooks.on_connection_open(SimpleNamespace(), SimpleNamespace(), "/sql/1.0/warehouses/x")
+    hooks.on_connection_open(
+        SimpleNamespace(), SimpleNamespace(), SimpleNamespace(), "/sql/1.0/warehouses/x"
+    )
 
     build.assert_not_called()
     coord.set_post_parse.assert_not_called()
@@ -252,10 +254,42 @@ def test_connection_open_workspace_id(monkeypatch, http_path, manager_id, expect
     coord = Mock()
     monkeypatch.setattr(hooks, "coordinator", lambda: coord)
     monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-1")
-    monkeypatch.setattr(hooks, "is_enabled_for_invocation", lambda _: True)
+    monkeypatch.setattr(hooks, "is_collection_enabled_for_invocation", lambda _: True)
+    monkeypatch.setattr(hooks, "is_enabled_for_connection", lambda *_: True)
     monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: True)
     manager = SimpleNamespace(host="https://h", header_factory=lambda: {}, workspace_id=manager_id)
 
-    hooks.on_connection_open(SimpleNamespace(), manager, http_path)
+    hooks.on_connection_open(SimpleNamespace(), manager, SimpleNamespace(), http_path)
 
     assert coord.set_transport.call_args.args[1].workspace_id == expected
+
+
+@pytest.mark.parametrize(
+    "reusable, has_manager, server_on, expect_lookup, expect_transport",
+    [
+        pytest.param(True, True, True, True, True, id="server_on"),
+        pytest.param(True, True, False, True, False, id="server_off"),
+        pytest.param(False, True, True, False, False, id="kernel_u2m_skips_lookup"),
+        pytest.param(True, False, True, False, False, id="no_manager_skips_lookup"),
+    ],
+)
+def test_connection_open_server_gate(
+    monkeypatch, reusable, has_manager, server_on, expect_lookup, expect_transport
+):
+    coord = Mock()
+    lookup = Mock(return_value=server_on)
+    monkeypatch.setattr(hooks, "coordinator", lambda: coord)
+    monkeypatch.setattr(hooks, "_current_invocation_id", lambda: "inv-1")
+    monkeypatch.setattr(hooks, "is_collection_enabled_for_invocation", lambda _: True)
+    monkeypatch.setattr(hooks, "is_enabled_for_connection", lookup)
+    monkeypatch.setattr(hooks, "has_reusable_transport", lambda _: reusable)
+    manager = (
+        SimpleNamespace(host="https://h", header_factory=lambda: {}, workspace_id="7")
+        if has_manager
+        else None
+    )
+
+    hooks.on_connection_open(SimpleNamespace(), manager, SimpleNamespace(), "/sql/1.0/x")
+
+    assert lookup.called is expect_lookup
+    assert coord.set_transport.called is expect_transport

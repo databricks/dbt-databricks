@@ -33,6 +33,12 @@ class TestMaterializedViewSchemaEvolution(RerunSafeMixin):
         util.run_dbt(["run"])
         rows = project.run_sql("select id, name, new_column from schema_evolution_mv", fetch="all")
         assert rows == [(1, "foo", 42)]
+        tags = project.run_sql(
+            "select tag_name, tag_value from `system`.`information_schema`.`table_tags`"
+            " where schema_name = '{schema}' and table_name = 'schema_evolution_mv'",
+            fetch="all",
+        )
+        assert {(row[0], row[1]) for row in tags} == {("drift_tag", "kept")}
 
     def test_column_add_to_properties_yaml_recreates(self, project):
         """The issue's exact sequence: upstream gains a column, then the YAML follows."""

@@ -18,8 +18,9 @@ class TagsConfig(DatabricksComponentConfig):
 
     def get_diff(self, other: "TagsConfig") -> Optional["TagsConfig"]:
         # Tags are now "set only" - we never unset tags, only add or update them
-        if any(item not in other.set_tags.items() for item in self.set_tags.items()):
-            return TagsConfig(set_tags=self.set_tags)
+        set_tags = {k: v for k, v in self.set_tags.items() if other.set_tags.get(k) != v}
+        if set_tags:
+            return TagsConfig(set_tags=set_tags)
         return None
 
     def requires_server_metadata_for_diff(self) -> bool:
@@ -34,14 +35,10 @@ class TagsProcessor(DatabricksComponentProcessor[TagsConfig]):
 
     @classmethod
     def from_relation_results(cls, results: RelationResults) -> TagsConfig:
-        table = results.get("information_schema.tags")
-        tags = dict()
-
-        if table:
-            for row in table.rows:
-                tags[str(row[0])] = "" if row[1] is None else str(row[1])
-
-        return TagsConfig(set_tags=tags)
+        tags = results.get("table_tags") or {}
+        return TagsConfig(
+            set_tags={str(key): "" if value is None else str(value) for key, value in tags.items()}
+        )
 
     @classmethod
     def from_relation_config(cls, relation_config: RelationConfig) -> TagsConfig:

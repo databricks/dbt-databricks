@@ -1,37 +1,32 @@
 from unittest.mock import Mock
 
 import pytest
-from agate import Table
 from dbt.exceptions import DbtRuntimeError
 
 from dbt.adapters.databricks.relation_configs.tags import TagsConfig, TagsProcessor
 
 
 class TestTagsProcessor:
-    def test_from_relation_results__none(self):
-        results = {
-            "information_schema.tags": Table(rows=[], column_names=["tag_name", "tag_value"])
-        }
+    @pytest.mark.parametrize("results", [{}, {"table_tags": None}, {"table_tags": {}}])
+    def test_from_relation_results__none(self, results):
         spec = TagsProcessor.from_relation_results(results)
         assert spec == TagsConfig(set_tags={})
 
     def test_from_relation_results__some(self):
-        results = {
-            "information_schema.tags": Table(
-                rows=[["a", "valA"], ["b", "valB"]], column_names=["tag_name", "tag_value"]
-            )
-        }
+        results = {"table_tags": {"a": "valA", "b": "valB"}}
         spec = TagsProcessor.from_relation_results(results)
         assert spec == TagsConfig(set_tags={"a": "valA", "b": "valB"})
 
     def test_from_relation_results__key_only(self):
-        results = {
-            "information_schema.tags": Table(
-                rows=[["a", ""]], column_names=["tag_name", "tag_value"]
-            )
-        }
+        results = {"table_tags": {"a": "", "b": None}}
         spec = TagsProcessor.from_relation_results(results)
-        assert spec == TagsConfig(set_tags={"a": ""})
+        assert spec == TagsConfig(set_tags={"a": "", "b": ""})
+
+    def test_from_relation_results__normalizes_scalars(self):
+        results = {"table_tags": {1: None, "priority": 0, "enabled": False}}
+        assert TagsProcessor.from_relation_results(results) == TagsConfig(
+            set_tags={"1": "", "priority": "0", "enabled": "False"}
+        )
 
     def test_from_relation_config__without_tags(self):
         model = Mock()
@@ -89,6 +84,12 @@ class TestTagsConfig:
         config_old = TagsConfig(set_tags={"b": "other_value", "c": "value"})
         diff = config.get_diff(config_old)
         assert diff == TagsConfig(set_tags={"a": "value", "b": "value"})
+
+    def test_get_diff__omits_unchanged_keys(self):
+        config = TagsConfig(set_tags={"stable": "1", "moved": "new"})
+        config_old = TagsConfig(set_tags={"stable": "1", "moved": "old", "remote_only": "x"})
+        diff = config.get_diff(config_old)
+        assert diff == TagsConfig(set_tags={"moved": "new"})
 
     def test_get_diff__no_changes(self):
         config = TagsConfig(set_tags={"tag": "value"})
