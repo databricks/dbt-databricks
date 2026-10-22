@@ -52,6 +52,7 @@ replaced_relation_source_sql = """
 select 1 as id union all select 2 as id union all select 3 as id
 """
 
+# Fails the model unless the relation cache reports the model's new type to its own post-hook.
 assert_cached_as_materialized_macro = """
 {% macro assert_cached_as_materialized() %}
   {% if execute %}
@@ -66,6 +67,7 @@ assert_cached_as_materialized_macro = """
 {% endmacro %}
 """
 
+# Fails the model unless the relation cache still carries the server metadata of a rebuilt relation.
 assert_cached_with_owner_macro = """
 {% macro assert_cached_with_owner() %}
   {% if execute %}

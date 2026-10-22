@@ -38,9 +38,9 @@ flowchart TD
     EXISTRENAME2 -- no --> DROP["drop_and_create:<br/>drop existing; create target"]
 ```
 
-View-to-view replacement uses `CREATE OR REPLACE VIEW` to avoid rename failures on removed
-upstream columns.
-Unity Catalog identity and lineage continuity are not guaranteed.
+Ordinary view-to-view replacement uses `CREATE OR REPLACE VIEW` regardless of file format or
+`use_safer_relation_operations`, avoiding rename failures after upstream column removal. Unity
+Catalog identity and lineage continuity are not guaranteed.
 
 Other direct replacement is available only when safe operations are disabled and the existing and
 target relations have the same type, the existing relation is replaceable, and the configured file
