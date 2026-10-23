@@ -82,19 +82,6 @@ class TestGetReplaceSql(MacroTestBase):
         assert statements == ["rename model__dbt_stg", "drop backup"]
         context["create_backup"].assert_called_once_with(existing)
 
-    def test_hive_metastore_view_to_view_with_safe_replace_backs_up_view(
-        self, template_bundle, config, context
-    ):
-        config["use_safer_relation_operations"] = True
-        existing = DatabricksRelation.create(
-            database="hive_metastore", schema="schema", identifier="model", type="view"
-        )
-
-        statements = self.get_replace_sql(template_bundle, existing, "view")
-
-        assert statements == ["rename model__dbt_stg", "drop backup"]
-        context["create_backup"].assert_called_once_with(existing)
-
     @pytest.mark.parametrize("target_type", ["materialized_view", "streaming_table"])
     def test_unity_catalog_table_to_non_renamable_backs_up_table(
         self, template_bundle, context, target_type
@@ -108,16 +95,21 @@ class TestGetReplaceSql(MacroTestBase):
         assert statements == [f"create {target_type}", "drop backup"]
         context["create_backup"].assert_called_once_with(existing)
 
+    @pytest.mark.parametrize("safe_replace", [False, True])
     @pytest.mark.parametrize("database", ["hive_metastore", "main"])
-    def test_view_to_view_without_safe_replace_uses_create_or_replace(
-        self, template_bundle, context, database
+    @pytest.mark.parametrize("file_format", ["delta", "parquet"])
+    def test_view_to_view_uses_create_or_replace(
+        self, template_bundle, config, context, database, safe_replace, file_format
     ):
+        config["use_safer_relation_operations"] = safe_replace
+        context["adapter"].resolve_file_format.return_value = file_format
         existing = DatabricksRelation.create(
             database=database, schema="schema", identifier="model", type="view"
         )
 
         assert self.get_replace_sql(template_bundle, existing, "view") == "create or replace view"
         context["create_backup"].assert_not_called()
+        context["drop_relation_if_exists"].assert_not_called()
 
 
 def model_relation(type):
