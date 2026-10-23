@@ -553,7 +553,7 @@ wheels = [
 
 [[package]]
 name = "dbt-core"
-version = "1.12.5"
+version = "1.12.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "agate" },
@@ -583,9 +583,9 @@ dependencies = [
     { name = "sqlparse" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/87/4b/92569e1b74c81578d4c699ce1ad04b47084d6cc78e6d9846a17c8536fba1/dbt_core-1.12.5.tar.gz", hash = "sha256:f17f662aed7b6a8b0d267ecf07448ad1ec03edf147a52abbdf5ee48d25999bb6", size = 1036303, upload-time = "2026-09-15T19:08:28.036Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/47/85/37a226ed7c80dd83775f74bca99a42be9ec38e10fa4e21ef421da4e6e6c8/dbt_core-1.12.6.tar.gz", hash = "sha256:e4378ecde4740d6b6a5b706ad25162272e28dc20ee8390c42c1ebd637752574f", size = 1040922, upload-time = "2026-10-14T10:24:54.298Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/98/8e/90f07667fdc1b448f167a48f53bc0db3641cd4eb9ab5f1af2c1a2171f754/dbt_core-1.12.5-py3-none-any.whl", hash = "sha256:77661a8c9ee1d1ec7a8ed904d15a0937289d12ba6fd2d86d6f36d3eea735ce3d", size = 1132717, upload-time = "2026-09-15T19:08:26.36Z" },
+    { url = "https://files.pythonhosted.org/packages/57/9a/db7029272bd80bde5d7e80588bfea5a031762f4180764f50bb4e473a8634/dbt_core-1.12.6-py3-none-any.whl", hash = "sha256:a14fb6724a557dea781afa19171869a1b0b286a396d5dc012e74b8bd3596325e", size = 1137877, upload-time = "2026-10-14T10:24:52.426Z" },
 ]
 
 [[package]]
@@ -643,7 +643,7 @@ requires-dist = [
     { name = "databricks-sql-connector", extras = ["pyarrow"], specifier = ">=4.2.2,<4.4.1" },
     { name = "dbt-adapters", specifier = ">=1.22.0,<1.25.0" },
     { name = "dbt-common", specifier = ">=1.37.0,<1.39.0" },
-    { name = "dbt-core", specifier = ">=1.11.2,<1.12.6" },
+    { name = "dbt-core", specifier = ">=1.11.2,<1.12.7" },
     { name = "dbt-spark", specifier = ">=1.10.0,<1.11.0" },
     { name = "packaging", specifier = ">=21.0,<26.0" },
     { name = "pydantic", specifier = ">=1.10.0,<2.13.0" },
