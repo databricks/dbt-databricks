@@ -1,6 +1,6 @@
 # View Flow
 
-_Last updated: 2026-10-22_
+_Last updated: 2026-10-23_
 
 > Two diagrams follow: **V1** is the default path, **V2** is used when the `use_materialization_v2`
 > behavior flag is enabled. See [flow/README.md](README.md) for what the flag is and how the
@@ -41,7 +41,8 @@ flowchart LR
     ALTERABLE -- no --> REPLACE[replace_with_view]
     ALTERABLE -- yes --> HMS{Hive metastore?}
     HMS -- yes --> ERROR[Raise compiler error]
-    HMS -- no --> CHANGES{"Configuration changes or SQL contains *?"}
+    HMS -- no --> VALIDATE[validate_view_model]
+    VALIDATE --> CHANGES{"Configuration changes or SQL contains *?"}
     CHANGES -- no --> NOOP[execute_no_op]
     CHANGES -- yes --> REFRESH{Changes require full refresh?}
     REFRESH -- yes --> REPLACE
@@ -56,7 +57,9 @@ flowchart LR
     GRANTS --> POST[Run post-hooks]
 ```
 
-`relation_should_be_altered` rejects the Hive metastore when alter-in-place was requested. A
+`relation_should_be_altered` rejects the Hive metastore when alter-in-place was requested.
+`validate_view_model` is the same check `create_view_as` runs: it rejects column masks and row
+filters and asserts an enforced contract, so ALTER and no-op runs fail where CREATE would. A
 replacement applies table and column tags after `get_replace_sql`; an in-place alter applies the
 configuration changes returned by relation configuration comparison.
 
@@ -66,8 +69,9 @@ already available to dbt and adds no schema-inference or metadata query. It cons
 includes `COUNT(*)`, multiplication, and stars in comments or string literals. SQL without `*`
 keeps the existing query and configuration comparison, including the no-op path when nothing
 changes; upstream type changes alone do not trigger a query update for those explicit projections.
-Column-comment-only changes retain their own diff path, and query updates use the existing
-column-comment reapplication after `ALTER VIEW AS`.
+Column-comment-only changes retain their own diff path. Query updates skip that diff and instead
+reapply documented comments to the columns read after `ALTER VIEW AS`, regardless of an inherited
+`file_format`, so a comment change on a column the new query removed is not applied.
 
 Both paths then run
 `validate_persist_doc_columns`, which warns when documented columns are missing from the built
