@@ -34,7 +34,7 @@
   {% set file_format = adapter.resolve_file_format(config) %}
   {% set is_replaceable = existing_relation.type == target_relation.type and existing_relation.can_be_replaced and file_format == "delta" %}
 
-  {#- Renaming revalidates the old query, which may reference removed upstream columns. -#}
+  {#- View-to-view replacement uses CREATE OR REPLACE in V1/V2, regardless of safer mode. -#}
   {% if existing_relation.is_view and target_relation.is_view %}
     {{ return(get_replace_view_sql(target_relation, sql)) }}
   {% endif %}

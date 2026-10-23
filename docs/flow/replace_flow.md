@@ -1,6 +1,6 @@
 # Replace Flow
 
-_Last updated: 2026-10-22_
+_Last updated: 2026-10-23_
 
 Shared decision tree used when view, materialized-view, streaming-table, or metric-view helpers must
 replace an existing relation. Table and incremental V2 use their dedicated
@@ -38,14 +38,8 @@ flowchart TD
     EXISTRENAME2 -- no --> DROP["drop_and_create:<br/>drop existing; create target"]
 ```
 
-Ordinary view-to-view replacement uses `CREATE OR REPLACE VIEW` regardless of file format or
-`use_safer_relation_operations`, avoiding rename failures after upstream column removal. Unity
-Catalog identity and lineage continuity are not guaranteed.
-
-Other direct replacement is available only when safe operations are disabled and the existing and
-target relations have the same type, the existing relation is replaceable, and the configured file
-format is Delta. In practice, the remaining direct branch here is materialized views; table targets
-have already failed at the initial guard.
+View-to-view replacement uses `CREATE OR REPLACE VIEW` in V1 and V2, regardless of file format
+or safer operations.
 
 Tables and views can be renamed, except that an existing Hive metastore table is never renamed:
 Databricks rejects `ALTER TABLE ... RENAME TO` for managed Delta tables on S3. A view replacing a
