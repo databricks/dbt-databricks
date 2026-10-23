@@ -6,7 +6,7 @@
 - Add opt-in POST_PARSE invocation telemetry for eligible commands via `connection_parameters.enable_dbt_telemetry`, sent only when the workspace's server-side telemetry flag is on; `connection_parameters.force_enable_dbt_telemetry` sends regardless of the server flag ([#1647](https://github.com/databricks/dbt-databricks/pull/1647), [#1682](https://github.com/databricks/dbt-databricks/pull/1682))
 - Add POST_RUN outcome telemetry to the opt-in invocation telemetry path ([#1648](https://github.com/databricks/dbt-databricks/pull/1648))
 - Add aggregate model configuration statistics to the opt-in POST_PARSE telemetry event ([#1665](https://github.com/databricks/dbt-databricks/pull/1665))
-- **BREAKING for some view models:** Views run one materialization whatever the `use_materialization_v2` value, so with the flag off `view_update_via_alter` now updates Unity Catalog views in place and fails on Hive metastore views, grants are applied after tags, and replacing an existing view now calls `get_create_view_as_sql` overrides ([#TBD](https://github.com/databricks/dbt-databricks/pull/TBD))
+- **BREAKING for some view models:** Views run one materialization whatever the `use_materialization_v2` value, so with the flag off `view_update_via_alter` now updates Unity Catalog views in place and fails on Hive metastore views, grants are applied after tags, and replacing an existing view now calls `get_create_view_as_sql` overrides ([#1737](https://github.com/databricks/dbt-databricks/pull/1737))
 
 ### Fixes
 
