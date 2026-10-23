@@ -624,3 +624,57 @@ class TestUpdateViewViaAlterUpstreamSchema(RerunSafeMixin, BaseUpdateView):
 
         assert [column.col_name for column in columns] == ["id", "msg", "extra"]
         assert columns[0][2] == "This is the id column"
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestUpdateViewViaAlterValidation(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "contract_view.sql": fixtures.contract_view_sql,
+            "schema.yml": fixtures.contract_schema_yml,
+        }
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("contract_view",)
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {"+view_update_via_alter": True},
+        }
+
+    def test_contract_violation_blocks_alter(self, project):
+        util.run_dbt(["run"])
+        util.write_file(fixtures.contract_violating_view_sql, "models", "contract_view.sql")
+
+        failed = util.run_dbt(["run"], expect_pass=False)
+
+        assert failed.results[0].status == RunStatus.Error
+        rows = project.run_sql("select id from {database}.{schema}.contract_view", fetch="all")
+        assert rows == [Row([1], ["id"])]
+
+    def test_contract_violation_blocks_no_op(self, project):
+        util.run_dbt(["run"])
+        util.write_file(fixtures.contract_changed_type_schema_yml, "models", "schema.yml")
+
+        failed = util.run_dbt(["run"], expect_pass=False)
+
+        assert failed.results[0].status == RunStatus.Error
+
+    @pytest.mark.parametrize(
+        "schema_yml",
+        [
+            pytest.param(fixtures.column_mask_schema_yml, id="column-mask"),
+            pytest.param(fixtures.row_filter_schema_yml, id="row-filter"),
+        ],
+    )
+    def test_unsupported_config_rejected(self, project, schema_yml):
+        util.run_dbt(["run"])
+        util.write_file(schema_yml, "models", "schema.yml")
+
+        failed = util.run_dbt(["run"], expect_pass=False)
+
+        assert failed.results[0].status == RunStatus.Error

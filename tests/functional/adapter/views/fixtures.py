@@ -104,3 +104,55 @@ seed_with_extra_csv = """id,msg,extra
 2,yo,c
 3,anyway,d
 """
+
+contract_view_sql = """
+{{ config(materialized='view') }}
+select cast(1 as bigint) as id, 'hello' as msg
+"""
+
+contract_violating_view_sql = """
+{{ config(materialized='view') }}
+select 'one' as id, 'hello' as msg
+"""
+
+contract_schema_yml = """
+version: 2
+models:
+  - name: contract_view
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: bigint
+      - name: msg
+        data_type: string
+"""
+
+contract_changed_type_schema_yml = contract_schema_yml.replace(
+    "data_type: bigint", "data_type: string"
+)
+
+column_mask_schema_yml = """
+version: 2
+models:
+  - name: contract_view
+    columns:
+      - name: id
+      - name: msg
+        column_mask:
+          function: mask_msg
+"""
+
+row_filter_schema_yml = """
+version: 2
+models:
+  - name: contract_view
+    config:
+      row_filter:
+        function: filter_id
+        columns: [id]
+    columns:
+      - name: id
+      - name: msg
+"""
