@@ -2,6 +2,7 @@ import pytest
 from dbt.contracts.results import RunResult, RunStatus
 from dbt.tests import util
 
+from tests.functional.adapter.fixtures import RerunSafeMixin
 from tests.functional.adapter.persist_constraints import fixtures
 
 
@@ -124,7 +125,11 @@ class TestIncrementalConstraints(TestConstraints):
         util.check_relations_equal(project.adapter, [model_name, expected_model_name])
 
 
-class TestSnapshotConstraints(TestConstraints):
+class TestSnapshotConstraints(RerunSafeMixin, TestConstraints):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("my_snapshot",)
+
     def check_snapshot_results(self, project, num_rows: int):
         results = project.run_sql("select * from {database}.{schema}.my_snapshot", fetch="all")
         assert len(results) == num_rows
