@@ -353,6 +353,25 @@ class TestUpdateViewViaAlterQueryPreservesColumnComments(
 
 
 @pytest.mark.skip_profile("databricks_cluster")
+class TestUpdateViewViaAlterInheritedParquetColumnComments(
+    TestUpdateViewViaAlterQueryPreservesColumnComments
+):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {
+                "+view_update_via_alter": True,
+                "+file_format": "parquet",
+                "+persist_docs": {
+                    "relation": True,
+                    "columns": True,
+                },
+            },
+        }
+
+
+@pytest.mark.skip_profile("databricks_cluster")
 class TestUpdateViewViaAlterRemoveTags(BaseRemoveTags):
     @pytest.fixture(scope="class")
     def project_config_update(self):

@@ -21,7 +21,11 @@
       {#-- ALTER VIEW AS <query> wipes all column comments, so reapply them here. --#}
       {%- set existing_columns = adapter.get_columns_in_relation(target_relation) -%}
       {%- set columns_to_persist = adapter.get_persist_doc_columns(existing_columns, model.columns) -%}
-      {{ alter_column_comment(target_relation, columns_to_persist) }}
+      {%- set comments = {} -%}
+      {%- for column_name, column in columns_to_persist.items() -%}
+        {%- do comments.update({column_name: column['description']}) -%}
+      {%- endfor -%}
+      {{ alter_column_comments(target_relation, comments) }}
     {% endif %}
   {% elif column_comments %}
     {{ alter_column_comments(target_relation, column_comments.comments) }}

@@ -70,8 +70,8 @@ includes `COUNT(*)`, multiplication, and stars in comments or string literals. S
 keeps the existing query and configuration comparison, including the no-op path when nothing
 changes; upstream type changes alone do not trigger a query update for those explicit projections.
 Column-comment-only changes retain their own diff path. Query updates skip that diff and instead
-reapply documented comments to the columns read after `ALTER VIEW AS`, so a comment change on a
-column the new query removed is not applied.
+reapply documented comments to the columns read after `ALTER VIEW AS`, regardless of an inherited
+`file_format`, so a comment change on a column the new query removed is not applied.
 
 Both paths then run
 `validate_persist_doc_columns`, which warns when documented columns are missing from the built
