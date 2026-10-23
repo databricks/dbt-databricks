@@ -173,3 +173,30 @@ models:
       - name: id
       - name: msg
 """
+
+altered_lifecycle_view_sql = """
+{{ config(view_update_via_alter=true) }}
+select id, msg from {{ ref('seed') }}
+"""
+
+replaced_lifecycle_view_sql = """
+select id, msg from {{ ref('seed') }}
+"""
+
+create_view_wrapper_override_sql = """
+{% macro databricks__get_create_view_as_sql(relation, sql) %}
+  {%- set marked_sql = "select *, '" ~ invocation_id ~ "' as override_marker from (" ~ sql ~ ")" -%}
+  {{ return(create_view_as(relation, marked_sql)) }}
+{% endmacro %}
+"""
+
+create_view_as_override_sql = """
+{% macro databricks__create_view_as(relation, sql) %}
+  create or replace view {{ relation.render() }} as
+  select *, '{{ invocation_id }}' as override_marker from ({{ sql }})
+{% endmacro %}
+"""
+
+override_view_sql = """
+select 1 as id
+"""

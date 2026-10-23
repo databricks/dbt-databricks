@@ -22,7 +22,6 @@ class TestViewMetadataFetchSkips(RerunSafeMixin):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+view_update_via_alter": True,
             },
@@ -66,7 +65,6 @@ class TestViewMetadataFetchRequiresTags:
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+view_update_via_alter": True,
             },

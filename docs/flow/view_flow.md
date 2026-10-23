@@ -2,32 +2,13 @@
 
 _Last updated: 2026-10-23_
 
-> Two diagrams follow: **V1** is the default path, **V2** is used when the `use_materialization_v2`
-> behavior flag is enabled. See [flow/README.md](README.md) for what the flag is and how the
-> selection works. Source: `dbt/include/databricks/macros/materializations/view.sql`.
+> Views run one flow; the `use_materialization_v2` behavior flag does not change it. See
+> [flow/README.md](README.md) for the flag. Source:
+> `dbt/include/databricks/macros/materializations/view.sql`.
 
-## V1 View Flow
-
-```mermaid
-flowchart LR
-    PRE[Run pre-hooks] --> WRONG{Existing relation is not a view?}
-    WRONG -- yes --> REPLACE[Replace using shared relation replacement flow]
-    WRONG -- no --> CREATE[Create or replace view]
-    REPLACE --> GRANTS
-    CREATE --> GRANTS[Apply grants]
-    GRANTS --> TAGS[Apply table tags]
-    TAGS --> COLTAGS[Apply column tags]
-    COLTAGS --> DOCS[validate_persist_doc_columns]
-    DOCS --> POST[Run post-hooks]
-```
-
-V1 and V2 both call the shared `run_pre_hooks` / `run_post_hooks` helpers; see [hook transaction
-categories](README.md#hook-transaction-categories). For a different existing relation type, V1
-uses the shared [replace flow](replace_flow.md).
-
-## V2 View Flow
-
-Replacement branches use the shared [replace flow](replace_flow.md).
+Pre-hooks and post-hooks use the shared `run_pre_hooks` / `run_post_hooks` helpers; see [hook
+transaction categories](README.md#hook-transaction-categories). Replacement branches use the shared
+[replace flow](replace_flow.md).
 
 ```mermaid
 flowchart LR
@@ -73,6 +54,7 @@ Column-comment-only changes retain their own diff path. Query updates skip that 
 reapply documented comments to the columns read after `ALTER VIEW AS`, regardless of an inherited
 `file_format`, so a comment change on a column the new query removed is not applied.
 
-Both paths then run
+CREATE and view-to-view replacement both build the view through `get_create_view_as_sql`, so
+overrides of it or of `create_view_as` apply to either. Every branch then runs
 `validate_persist_doc_columns`, which warns when documented columns are missing from the built
-relation.
+relation, before grants and post-hooks.
