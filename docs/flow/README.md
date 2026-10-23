@@ -16,10 +16,14 @@ so the "V1" / "Existing" diagram is what most projects run today; the "V2" / "Ne
 runs once a project opts in.
 
 For table and incremental models, V2 separates *create* from *insert*: it builds an intermediate
-relation and may stage and swap the target when safer relation operations are enabled. Macros
-branch on the `use_materialization_v2()` macro, which returns the model's `use_materialization_v2`
-config when set and otherwise the behavior flag, so a project or individual model can choose its
-path.
+relation and may stage and swap the target when safer relation operations are enabled.
+
+Table and incremental models can also choose their path with the `use_materialization_v2` model
+config. Their materializations branch on the `use_materialization_v2()` macro, which returns the
+model's config when set and otherwise the behavior flag. The default path builds the table with one
+atomic `CREATE OR REPLACE TABLE … AS SELECT`; V2 creates the table first and then inserts, so it
+can apply column masks, comments, and constraints at create time, but the table is briefly empty
+during a refresh. View models ignore the model config.
 
 Materializations that honor the flag show both diagrams in their doc:
 
