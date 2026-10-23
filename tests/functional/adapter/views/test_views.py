@@ -133,6 +133,17 @@ class BaseUpdateQueryPreservesColumnComments(BaseUpdateView):
         )
         assert results[0][2] == "This is the id column"
 
+    def test_view_update_query_drops_documented_column(self, project):
+        util.run_dbt(["build"])
+        util.write_file(fixtures.altered_view_sql, "models", "initial_view.sql")
+        util.write_file(fixtures.stale_comments_schema_yml, "models", "schema.yml")
+        util.run_dbt(["run"])
+
+        columns = project.run_sql("describe {database}.{schema}.initial_view", fetch="all")
+        assert [(column.col_name, column.comment) for column in columns] == [
+            ("id", "This is an id column")
+        ]
+
 
 class BaseRemoveTags(BaseUpdateView):
     def test_view_update_remove_tags(self, project):
@@ -320,7 +331,13 @@ class TestUpdateViewViaAlterColumnComments(RerunSafeMixin, BaseUpdateColumnComme
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestUpdateViewViaAlterQueryPreservesColumnComments(BaseUpdateQueryPreservesColumnComments):
+class TestUpdateViewViaAlterQueryPreservesColumnComments(
+    RerunSafeMixin, BaseUpdateQueryPreservesColumnComments
+):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("initial_view",)
+
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {

@@ -23,8 +23,7 @@
       {%- set columns_to_persist = adapter.get_persist_doc_columns(existing_columns, model.columns) -%}
       {{ alter_column_comment(target_relation, columns_to_persist) }}
     {% endif %}
-  {% endif %}
-  {% if column_comments %}
+  {% elif column_comments %}
     {{ alter_column_comments(target_relation, column_comments.comments) }}
   {% endif %}
   {% if column_tags %}

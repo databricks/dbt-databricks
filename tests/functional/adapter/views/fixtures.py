@@ -71,6 +71,23 @@ models:
       - name: msg
 """
 
+stale_comments_schema_yml = """
+version: 2
+models:
+  - name: initial_view
+    description: "This is a view"
+    config:
+      tblproperties:
+        key: value
+      databricks_tags:
+        tag1: value1
+    columns:
+      - name: id
+        description: "This is an id column"
+      - name: msg
+        description: "This is the msg column"
+"""
+
 altered_view_sql = """
 {{ config(materialized='view') }}
 select id from {{ ref('seed') }};

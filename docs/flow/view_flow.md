@@ -69,8 +69,9 @@ already available to dbt and adds no schema-inference or metadata query. It cons
 includes `COUNT(*)`, multiplication, and stars in comments or string literals. SQL without `*`
 keeps the existing query and configuration comparison, including the no-op path when nothing
 changes; upstream type changes alone do not trigger a query update for those explicit projections.
-Column-comment-only changes retain their own diff path, and query updates use the existing
-column-comment reapplication after `ALTER VIEW AS`.
+Column-comment-only changes retain their own diff path. Query updates skip that diff and instead
+reapply documented comments to the columns read after `ALTER VIEW AS`, so a comment change on a
+column the new query removed is not applied.
 
 Both paths then run
 `validate_persist_doc_columns`, which warns when documented columns are missing from the built

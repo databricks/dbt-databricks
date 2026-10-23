@@ -130,6 +130,7 @@ class TestAlterView(MacroTestBase):
         context["apply_tblproperties"] = Mock()
         context["alter_query"] = Mock()
         context["alter_column_comment"] = Mock()
+        context["alter_column_comments"] = Mock()
         context["apply_column_tags"] = Mock()
 
     def render_alter_view(self, template_bundle, changes):
@@ -172,6 +173,19 @@ class TestAlterView(MacroTestBase):
         self.render_alter_view(template_bundle, {"query": Mock()})
         context["alter_query"].assert_called_once()
         context["alter_column_comment"].assert_called_once()
+
+    def test_macros__alter_view_with_column_comments(self, context, template_bundle):
+        self.render_alter_view(template_bundle, {"column_comments": Mock()})
+        context["alter_column_comments"].assert_called_once()
+
+    def test_macros__alter_view_with_query_skips_column_comment_diff(
+        self, context, template_bundle
+    ):
+        context["config"].persist_column_docs = Mock(return_value=True)
+        context["model"].columns = {"id": Mock()}
+        self.render_alter_view(template_bundle, {"query": Mock(), "column_comments": Mock()})
+        context["alter_column_comment"].assert_called_once()
+        context["alter_column_comments"].assert_not_called()
 
     def test_macros__alter_view_with_column_tags(self, context, template_bundle):
         column_tags = Mock()
