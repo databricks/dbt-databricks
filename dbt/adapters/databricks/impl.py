@@ -184,6 +184,17 @@ USE_DESCRIBE_AS_JSON_FOR_RELATION_METADATA = BehaviorFlag(
     ),
 )  # type: ignore[typeddict-item]
 
+USE_NON_TRANSACTIONAL_HOOKS = BehaviorFlag(
+    name="use_non_transactional_hooks",
+    default=False,
+    description=(
+        "Hooks configured with `transaction: false` (including `before_begin` and"
+        " `after_commit`) are being skipped. Databricks does not wrap models in a transaction;"
+        " enable this flag to run these hooks in their outside-transaction position without an"
+        " extra COMMIT."
+    ),
+)  # type: ignore[typeddict-item]
+
 
 class DatabricksRelationInfo(NamedTuple):
     table_name: str
@@ -347,6 +358,7 @@ class DatabricksAdapter(SparkAdapter):
             USE_MANAGED_ICEBERG,
             USE_CONCURRENT_MICROBATCH,
             USE_DESCRIBE_AS_JSON_FOR_RELATION_METADATA,
+            USE_NON_TRANSACTIONAL_HOOKS,
         ]
 
     def supports(self, capability: Capability) -> bool:
@@ -1280,6 +1292,29 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
         return cls.config_type().from_relation_config(relation_config)
 
     @classmethod
+    def _get_table_tags(
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+    ) -> dict[str, str]:
+        if relation.is_hive_metastore():
+            raise DbtRuntimeError("Tags are only supported for Unity Catalog")
+
+        if relation.database is None or relation.schema is None or relation.identifier is None:
+            raise DbtRuntimeError(
+                f"Cannot fetch table tags without a fully qualified relation name: {relation}"
+            )
+
+        entity_name = f"{relation.database}.{relation.schema}.{relation.identifier}"
+        tags = adapter.connections.api_client.entity_tag_assignments.list_table_tags(entity_name)
+        if tags is not None:
+            return tags
+
+        # Tokens scoped to `sql` can query information_schema but not the Unity Catalog API.
+        table = adapter.execute_macro("fetch_tags", kwargs={"relation": relation})
+        return {str(row[0]): "" if row[1] is None else str(row[1]) for row in table.rows}
+
+    @classmethod
     @abstractmethod
     def _describe_relation(
         cls,
@@ -1339,9 +1374,9 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
         # to maintain backward compatibility.
         table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
         if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
-            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+            results["table_tags"] = cls._get_table_tags(adapter, relation)
         else:
-            results["information_schema.tags"] = None
+            results["table_tags"] = None
 
         column_tag_config = (
             model_config.config.get(ColumnTagsProcessor.name) if model_config else None
@@ -1394,9 +1429,9 @@ class StreamingTableAPI(DeltaLiveTableAPIBase[StreamingTableConfig]):
 
         table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
         if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
-            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+            results["table_tags"] = cls._get_table_tags(adapter, relation)
         else:
-            results["information_schema.tags"] = None
+            results["table_tags"] = None
 
         column_tag_config = (
             model_config.config.get(ColumnTagsProcessor.name) if model_config else None
@@ -1433,7 +1468,7 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
         relation: DatabricksRelation,
         model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> RelationResults:
-        results = {}
+        results: RelationResults = {}
         kwargs = {"relation": relation}
 
         if not relation.is_hive_metastore():
@@ -1441,11 +1476,9 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
             # fetched to maintain backward compatibility.
             table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
             if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
-                results["information_schema.tags"] = adapter.execute_macro(
-                    "fetch_tags", kwargs=kwargs
-                )
+                results["table_tags"] = cls._get_table_tags(adapter, relation)
             else:
-                results["information_schema.tags"] = None
+                results["table_tags"] = None
 
             # To be backward compatible model_config can be None. In that case, tags should be
             # fetched to maintain backward compatibility.
@@ -1515,16 +1548,16 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
         relation: DatabricksRelation,
         model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> RelationResults:
-        results = {}
+        results: RelationResults = {}
         kwargs = {"relation": relation}
 
         # To be backward compatible model_config can be None. In that case, tags should be fetched
         # to maintain backward compatibility.
         table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
         if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
-            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+            results["table_tags"] = cls._get_table_tags(adapter, relation)
         else:
-            results["information_schema.tags"] = None
+            results["table_tags"] = None
 
         column_tag_config = (
             model_config.config.get(ColumnTagsProcessor.name) if model_config else None
@@ -1569,16 +1602,15 @@ class MetricViewAPI(RelationAPIBase[MetricViewConfig]):
         relation: DatabricksRelation,
         model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> RelationResults:
-        results = {}
+        results: RelationResults = {}
         kwargs = {"relation": relation}
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
-        kwargs = {"relation": relation}
         table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
         if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
-            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+            results["table_tags"] = cls._get_table_tags(adapter, relation)
         else:
-            results["information_schema.tags"] = None
+            results["table_tags"] = None
 
         kwargs = {"table_name": relation}
         results["describe_extended"] = adapter.execute_macro(

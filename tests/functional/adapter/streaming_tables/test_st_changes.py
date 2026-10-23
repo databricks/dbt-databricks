@@ -133,6 +133,23 @@ class TestStreamingTableChangesApply(StreamingTableChanges):
     def project_config_update(self):
         return {"models": {"on_configuration_change": OnConfigurationChangeOption.Apply.value}}
 
+    def test_table_tags_are_read_after_alter(self, project, my_streaming_table):
+        util.set_model_file(project, my_streaming_table, fixtures.tagged_streaming_table)
+        util.run_dbt(["run", "--models", my_streaming_table.name])
+        util.run_dbt(["run", "--models", my_streaming_table.name])
+
+        tags = project.run_sql(
+            "select tag_name, tag_value from system.information_schema.table_tags "
+            f"where catalog_name = '{project.database}' "
+            f"and schema_name = '{project.test_schema}' "
+            "and table_name = 'my_streaming_table'",
+            fetch="all",
+        )
+        assert {row[0]: row[1] for row in tags} == {"classification": "internal"}
+        with util.get_connection(project.adapter):
+            config = project.adapter.get_relation_config(my_streaming_table)
+        assert config.config["tags"].set_tags == {"classification": "internal"}
+
     def test_change_is_applied_via_alter(self, project, my_streaming_table):
         self.check_start_state(project, my_streaming_table)
 
@@ -280,3 +297,50 @@ class TestStreamingTableChangesFail(StreamingTableChanges):
         )
         assert self.query_relation_type(project, my_streaming_table) == "streaming_table"
         util.assert_message_in_logs("REFRESHING STREAMING TABLE", log)
+
+
+class UnchangedStreamingTableTagsMixin:
+    on_configuration_change: str
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {"my_seed.csv": fixtures.tagged_refresh_seed}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"my_streaming_table.sql": fixtures.manual_tagged_streaming_table}
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+on_configuration_change": self.on_configuration_change}}
+
+    def test_unchanged_tags_refresh_new_rows(self, project):
+        util.run_dbt(["seed", "--full-refresh"])
+        util.run_dbt(["run", "--select", "my_streaming_table", "--full-refresh"])
+        assert project.run_sql("select id from my_streaming_table", fetch="all") == [(1,)]
+
+        project.run_sql("insert into my_seed values (2)")
+        util.run_dbt(["run", "--select", "my_streaming_table"])
+
+        rows = project.run_sql("select id from my_streaming_table order by id", fetch="all")
+        tags = project.run_sql(
+            "select tag_name, tag_value from system.information_schema.table_tags "
+            f"where catalog_name = '{project.database}' "
+            f"and schema_name = '{project.test_schema}' "
+            "and table_name = 'my_streaming_table'",
+            fetch="all",
+        )
+        assert rows == [(1,), (2,)]
+        assert {row[0]: row[1] for row in tags} == {"classification": "internal"}
+
+
+@pytest.mark.dlt
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestUnchangedStreamingTableTagsFail(UnchangedStreamingTableTagsMixin):
+    on_configuration_change = "fail"
+
+
+@pytest.mark.dlt
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestUnchangedStreamingTableTagsContinue(UnchangedStreamingTableTagsMixin):
+    on_configuration_change = "continue"

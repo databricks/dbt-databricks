@@ -419,9 +419,9 @@ databricks-sdk==0.68.0 \
     --hash=sha256:03ff2a234868de6d9028dabd545937ae36ce204c753d7b760598d47bfec4742b \
     --hash=sha256:d24df291430404313f2efd3770216edd47269c7aa0446f1eca67f16b6e175475
     # via dbt-databricks (pyproject.toml)
-databricks-sql-connector==4.1.2 \
-    --hash=sha256:7a4eee6c773e0415731530dd812cc4bae04067e73521e5f6161c05d25233e5e7 \
-    --hash=sha256:b2d05bde9eb48226a6ca56b2e862150445a323e93504379605568371c4c0af19
+databricks-sql-connector==4.2.2 \
+    --hash=sha256:409632a6adb93e849ecd5faaa2e98192e307c984e85cc7c696fb8e953acb7403 \
+    --hash=sha256:f76164a225f10c49c12b6895d132082919d2de828e19fe3813eb3dfe8f614fdc
     # via dbt-databricks (pyproject.toml)
 dbt-adapters==1.22.0 \
     --hash=sha256:0af901f9cee81342c2e113419685c0256108f0687b5ef4cb30af5f243f85af41 \
@@ -990,6 +990,10 @@ pyasn1-modules==0.4.2 \
     --hash=sha256:29253a9207ce32b64c3ac6600edc75368f98473906e8fd1043bd6b5b1de2c14a \
     --hash=sha256:677091de870a80aae844b1ca6134f54652fa2c8c5a52aa396440ac3106e941e6
     # via google-auth
+pybreaker==1.4.1 \
+    --hash=sha256:8df2d245c73ba40c8242c56ffb4f12138fbadc23e296224740c2028ea9dc1178 \
+    --hash=sha256:b4dab4a05195b7f2a64a6c1a6c4ba7a96534ef56ea7210e6bcb59f28897160e0
+    # via databricks-sql-connector
 pycparser==3.0 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy' \
     --hash=sha256:600f49d217304a5902ac3c37e1281c9fe94e4d0489de643a9504c5cdfdfc6b29 \
     --hash=sha256:b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992

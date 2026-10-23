@@ -43,7 +43,7 @@
     {{ run_post_hooks() }}
 
   {% else %}
-    {{ run_hooks(pre_hooks) }}
+    {{ run_pre_hooks() }}
 
     {%- if existing_relation is not none and not existing_relation.is_view -%}
       {{ execute_multiple_statements(get_replace_sql(existing_relation, target_relation, sql)) }}
@@ -66,7 +66,7 @@
 
     {% do validate_persist_doc_columns(target_relation, model) %}
 
-    {{ run_hooks(post_hooks) }}
+    {{ run_post_hooks() }}
   {% endif %}
 
   {{ return({'relations': [target_relation]}) }}
