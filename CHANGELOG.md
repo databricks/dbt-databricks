@@ -9,7 +9,7 @@
 
 ### Fixes
 
-- Enforce model contracts and reject column masks and row filters when `view_update_via_alter` updates a view in place or finds no changes, matching `CREATE`; views that violate their enforced contract or set a column mask or row filter now fail on these runs instead of passing silently
+- Enforce model contracts and reject column masks and row filters when `view_update_via_alter` updates a view in place or finds no changes, matching `CREATE`; views that violate their enforced contract or set a column mask or row filter now fail on these runs instead of passing silently ([#1736](https://github.com/databricks/dbt-databricks/pull/1736))
 - Replace a view with `CREATE OR REPLACE VIEW` when `use_safer_relation_operations` is on, including views inheriting `file_format: parquet`, so a view whose upstream dropped or renamed a column it used no longer fails with `UNRESOLVED_COLUMN` (thanks @shantanutheone!) ([#1733](https://github.com/databricks/dbt-databricks/pull/1733) resolves [#1714](https://github.com/databricks/dbt-databricks/issues/1714))
 - Skip `transaction: false` hooks with a warning by default, or run them without `COMMIT` when `use_non_transactional_hooks` is enabled; the inherited function/UDF materialization remains unchanged ([#1693](https://github.com/databricks/dbt-databricks/pull/1693) resolves [#1549](https://github.com/databricks/dbt-databricks/issues/1549))
 - Reapply view queries containing `*` when `view_update_via_alter` is enabled so upstream column additions appear, while retaining no-op runs for unchanged explicit projections ([#1720](https://github.com/databricks/dbt-databricks/pull/1720) resolves [#1356](https://github.com/databricks/dbt-databricks/issues/1356))
