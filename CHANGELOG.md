@@ -6,6 +6,7 @@
 - Add opt-in POST_PARSE invocation telemetry for eligible commands via `connection_parameters.enable_dbt_telemetry`, sent only when the workspace's server-side telemetry flag is on; `connection_parameters.force_enable_dbt_telemetry` sends regardless of the server flag ([#1647](https://github.com/databricks/dbt-databricks/pull/1647), [#1682](https://github.com/databricks/dbt-databricks/pull/1682))
 - Add POST_RUN outcome telemetry to the opt-in invocation telemetry path ([#1648](https://github.com/databricks/dbt-databricks/pull/1648))
 - Add aggregate model configuration statistics to the opt-in POST_PARSE telemetry event ([#1665](https://github.com/databricks/dbt-databricks/pull/1665))
+- Accept `use_materialization_v2` as a model config, so a project or an individual table or incremental model can choose between the atomic `CREATE OR REPLACE TABLE … AS SELECT` path and the create-then-insert path; models that don't set it follow the `use_materialization_v2` behavior flag, and view models ignore it ([#1718](https://github.com/databricks/dbt-databricks/pull/1718))
 
 ### Fixes
 

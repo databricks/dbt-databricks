@@ -1,6 +1,6 @@
 # Materialization Flow Docs
 
-_Last updated: 2026-10-22_
+_Last updated: 2026-10-23_
 
 These docs map how each dbt-databricks materialization executes — the decision branches, the
 order of operations, and where shared logic (like relation replacement) is reused. They are
@@ -17,8 +17,14 @@ runs once a project opts in.
 
 For table and incremental models, V2 separates *create* from *insert*: it builds an intermediate
 relation and may stage and swap the target when safer relation operations are enabled. View V2
-uses the flag too, but does not follow that staging-table pattern. Macros branch on the flag
-via `adapter.get_behavior_flag_no_warn('use_materialization_v2')`.
+uses the flag too, but does not follow that staging-table pattern.
+
+Table and incremental models can also choose their path with the `use_materialization_v2` model
+config. Their materializations branch on the `use_materialization_v2()` macro, which returns the
+model's config when set and otherwise the behavior flag. The default path builds the table with one
+atomic `CREATE OR REPLACE TABLE … AS SELECT`; V2 creates the table first and then inserts, so it
+can apply column masks, comments, and constraints at create time, but the table is briefly empty
+during a refresh. View models ignore the model config.
 
 Materializations that honor the flag show both diagrams in their doc:
 

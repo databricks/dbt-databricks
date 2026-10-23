@@ -240,6 +240,7 @@ class DatabricksConfig(AdapterConfig):
     use_safer_relation_operations: Optional[bool] = None
     incremental_apply_config_changes: Optional[bool] = None
     view_update_via_alter: Optional[bool] = None
+    use_materialization_v2: Optional[bool] = None
 
 
 def get_identifier_list_string(table_names: set[str]) -> str:
