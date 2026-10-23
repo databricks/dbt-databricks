@@ -24,6 +24,7 @@
 
 ### Under the Hood
 
+- Raise the `dbt-core` upper bound to `<1.12.7` to include dbt-core 1.12.6 ([#1739](https://github.com/databricks/dbt-databricks/pull/1739))
 - Raise the `databricks-sql-connector` floor to `>=4.2.2`, the first release that caches server feature flags per host, so the telemetry server check runs once per host instead of once per connection ([#1682](https://github.com/databricks/dbt-databricks/pull/1682))
 - Remove unused internal logging-event classes (`CredentialLoadError`/`CredentialSaveError`/`CredentialShardEvent`, `PipelineEvent`/`PipelineRefresh`/`PipelineRefreshError`, and the `ConnectionReset`/`ConnectionReuse`/`ConnectionIdleClose`/`ConnectionCreated` connection events) that have had no call sites since the cursor-management and pipeline refactors ([#1547](https://github.com/databricks/dbt-databricks/pull/1547))
 - Fetch table tags through the Unity Catalog Entity Tag Assignments API instead of `information_schema`, reducing metadata-query rate-limit pressure, and fall back to `information_schema` when the token cannot call the API (for example, a personal access token scoped to `sql`) ([#1603](https://github.com/databricks/dbt-databricks/pull/1603))
