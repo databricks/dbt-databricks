@@ -38,8 +38,8 @@ flowchart TD
     EXISTRENAME2 -- no --> DROP["drop_and_create:<br/>drop existing; create target"]
 ```
 
-View-to-view replacement uses `CREATE OR REPLACE VIEW` in V1 and V2, regardless of file format
-or safer operations.
+View-to-view replacement uses `CREATE OR REPLACE VIEW` through `get_create_view_as_sql`,
+regardless of file format or safer operations.
 
 Tables and views can be renamed, except that an existing Hive metastore table is never renamed:
 Databricks rejects `ALTER TABLE ... RENAME TO` for managed Delta tables on S3. A view replacing a

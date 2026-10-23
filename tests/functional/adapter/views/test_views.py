@@ -194,7 +194,6 @@ class TestUpdateViewViaAlterAddTags(BaseAddTags):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+view_update_via_alter": True,
                 "+persist_docs": {
@@ -210,7 +209,6 @@ class TestUpdateViewViaAlterDescription(BaseUpdateDescription):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+view_update_via_alter": True,
                 "+persist_docs": {
@@ -228,10 +226,7 @@ class TestUpdateViewViaAlterDescriptionDescribeJsonOn(
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {
-                "use_materialization_v2": True,
-                "use_describe_as_json_for_relation_metadata": True,
-            },
+            "flags": {"use_describe_as_json_for_relation_metadata": True},
             "models": {
                 "+view_update_via_alter": True,
                 "+persist_docs": {
@@ -247,7 +242,6 @@ class TestUpdateViewViaAlterNothing(BaseUpdateNothing):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+view_update_via_alter": True,
                 "+persist_docs": {
@@ -263,7 +257,6 @@ class TestUpdateViewViaAlterFullRefresh(BaseUpdateFullRefresh):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+view_update_via_alter": True,
                 "+persist_docs": {
@@ -279,7 +272,6 @@ class TestUpdateViewViaAlterQuery(BaseUpdateQuery):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+view_update_via_alter": True,
                 "+persist_docs": {
@@ -295,7 +287,6 @@ class TestUpdateViewViaAlterTblproperties(BaseUpdateTblProperties):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+view_update_via_alter": True,
                 "+persist_docs": {
@@ -319,7 +310,6 @@ class TestUpdateViewViaAlterColumnComments(RerunSafeMixin, BaseUpdateColumnComme
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+view_update_via_alter": True,
                 "+persist_docs": {
@@ -341,7 +331,6 @@ class TestUpdateViewViaAlterQueryPreservesColumnComments(
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+view_update_via_alter": True,
                 "+persist_docs": {
@@ -376,7 +365,6 @@ class TestUpdateViewViaAlterRemoveTags(BaseRemoveTags):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+view_update_via_alter": True,
                 "+persist_docs": {
@@ -392,7 +380,6 @@ class TestUpdateViewSafeReplaceDescription(BaseUpdateDescription):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+use_safer_relation_operations": True,
                 "+persist_docs": {
@@ -408,7 +395,6 @@ class TestUpdateViewSafeReplaceQuery(BaseUpdateQuery):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+use_safer_relation_operations": True,
                 "+persist_docs": {
@@ -424,7 +410,6 @@ class TestUpdateViewSafeReplaceTblproperties(BaseUpdateTblProperties):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+use_safer_relation_operations": True,
                 "+persist_docs": {
@@ -440,7 +425,6 @@ class TestUpdateUnsafeReplaceDescription(BaseUpdateDescription):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+use_safer_relation_operations": False,
                 "+persist_docs": {
@@ -456,7 +440,6 @@ class TestUpdateUnsafeReplaceQuery(BaseUpdateQuery):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+use_safer_relation_operations": False,
                 "+persist_docs": {
@@ -472,7 +455,6 @@ class TestUpdateUnsafeReplaceTblproperties(BaseUpdateTblProperties):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+use_safer_relation_operations": False,
                 "+persist_docs": {
@@ -494,7 +476,6 @@ class TestHiveUpdateViewSafeReplaceDescription(HiveBaseUpdateDescription):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+use_safer_relation_operations": True,
                 "+persist_docs": {
@@ -510,7 +491,6 @@ class TestHiveUpdateUnsafeReplaceDescription(HiveBaseUpdateDescription):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+use_safer_relation_operations": False,
                 "+persist_docs": {
@@ -532,7 +512,6 @@ class TestHiveUpdateViewSafeReplaceQuery(HiveBaseUpdateQuery):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+use_safer_relation_operations": True,
                 "+persist_docs": {
@@ -548,7 +527,6 @@ class TestHiveUpdateUnsafeReplaceQuery(HiveBaseUpdateQuery):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+use_safer_relation_operations": False,
                 "+persist_docs": {
@@ -570,7 +548,6 @@ class TestHiveUpdateViewSafeReplaceTblproperties(HiveBaseUpdateTblproperties):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+use_safer_relation_operations": True,
                 "+persist_docs": {
@@ -586,7 +563,6 @@ class TestHiveUpdateUnsafeReplaceTblproperties(HiveBaseUpdateTblproperties):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+use_safer_relation_operations": False,
                 "+persist_docs": {
@@ -615,7 +591,6 @@ class TestHiveViewUpdateViaAlterError(HiveViewUpdateViaAlterError):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+view_update_via_alter": True,
             },
@@ -635,7 +610,6 @@ class TestUpdateViewViaAlterUpstreamSchema(RerunSafeMixin, BaseUpdateView):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {
                 "+view_update_via_alter": True,
                 "+persist_docs": {"relation": True, "columns": True},
@@ -678,7 +652,6 @@ class TestUpdateViewViaAlterValidation(RerunSafeMixin):
     @pytest.fixture(scope="class")
     def project_config_update(self):
         return {
-            "flags": {"use_materialization_v2": True},
             "models": {"+view_update_via_alter": True},
         }
 
@@ -714,3 +687,97 @@ class TestUpdateViewViaAlterValidation(RerunSafeMixin):
         failed = util.run_dbt(["run"], expect_pass=False)
 
         assert failed.results[0].status == RunStatus.Error
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestViewLifecycleIgnoresMaterializationFlag(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"models": {"+grants": {"select": ["account users"]}}}
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {"seed.csv": fixtures.seed_csv}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "altered_view.sql": fixtures.altered_lifecycle_view_sql,
+            "replaced_view.sql": fixtures.replaced_lifecycle_view_sql,
+        }
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("altered_view", "replaced_view")
+
+    def test_alter_opt_in_selects_the_path(self, project):
+        util.run_dbt(["seed"])
+        util.run_dbt(["--warn-error", "run"])
+        for name in ("altered_view", "replaced_view"):
+            relation = util.relation_from_name(project.adapter, name)
+            with util.get_connection(project.adapter):
+                comment_sql = project.adapter.execute_macro(
+                    "comment_on_column_sql",
+                    kwargs={
+                        "column_path": f"{relation.render()}.id",
+                        "escaped_comment": "external comment",
+                    },
+                )
+            project.run_sql(comment_sql)
+
+        util.run_dbt(["--warn-error", "run"])
+
+        for name, comment in (("altered_view", "external comment"), ("replaced_view", None)):
+            columns = project.run_sql(f"describe {{database}}.{{schema}}.{name}", fetch="all")
+            assert [(column.col_name, column.comment) for column in columns] == [
+                ("id", comment),
+                ("msg", None),
+            ]
+            grants = project.run_sql(
+                "select grantee, privilege_type from {database}.information_schema.table_privileges"
+                f" where table_schema = '{{schema}}' and table_name = '{name}'"
+                " and inherited_from = 'NONE'",
+                fetch="all",
+            )
+            assert ("account users", "SELECT") in {(row[0], row[1]) for row in grants}
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestViewLifecycleMaterializationFlagOn(TestViewLifecycleIgnoresMaterializationFlag):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+            "models": {"+grants": {"select": ["account users"]}},
+        }
+
+
+class TestCreateViewWrapperOverride(RerunSafeMixin):
+    @pytest.fixture(scope="class")
+    def macros(self):
+        return {"create_view_override.sql": fixtures.create_view_wrapper_override_sql}
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"override_view.sql": fixtures.override_view_sql}
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("override_view",)
+
+    def test_override_builds_every_run(self, project):
+        markers = set()
+        for args in (["run"], ["run"], ["run", "--full-refresh"]):
+            util.run_dbt(args)
+            rows = project.run_sql(
+                "select override_marker from {database}.{schema}.override_view", fetch="all"
+            )
+            markers.add(rows[0][0])
+
+        assert len(markers) == 3
+
+
+class TestCreateViewAsOverride(TestCreateViewWrapperOverride):
+    @pytest.fixture(scope="class")
+    def macros(self):
+        return {"create_view_override.sql": fixtures.create_view_as_override_sql}
