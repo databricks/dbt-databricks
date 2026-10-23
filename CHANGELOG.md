@@ -2,6 +2,7 @@
 
 ### Features
 
+- Add `merge_actions_explicit` config to supply the full `WHEN … THEN` block of a `merge` incremental model as raw SQL, enabling multiple matched or not-matched-by-source clauses and conditional deletes (thanks @mi-volodin!) ([#1018](https://github.com/databricks/dbt-databricks/pull/1018) resolves [#949](https://github.com/databricks/dbt-databricks/issues/949))
 - Merge `tblproperties` additively across config hierarchy levels instead of replacing parent values (thanks @canbekley!) ([#1353](https://github.com/databricks/dbt-databricks/pull/1353))
 - Add opt-in POST_PARSE invocation telemetry for eligible commands via `connection_parameters.enable_dbt_telemetry`, sent only when the workspace's server-side telemetry flag is on; `connection_parameters.force_enable_dbt_telemetry` sends regardless of the server flag ([#1647](https://github.com/databricks/dbt-databricks/pull/1647), [#1682](https://github.com/databricks/dbt-databricks/pull/1682))
 - Add POST_RUN outcome telemetry to the opt-in invocation telemetry path ([#1648](https://github.com/databricks/dbt-databricks/pull/1648))
