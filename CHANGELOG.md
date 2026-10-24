@@ -1,3 +1,9 @@
+## dbt-databricks 1.12.8 (TBD)
+
+### Fixes
+
+- Require `certifi>=2026.10.19` to pick up a security fix in its CA certificate bundle ([#PR](https://github.com/databricks/dbt-databricks/pull/PR))
+
 ## dbt-databricks 1.12.7 (Oct 12, 2026)
 
 ### Fixes
