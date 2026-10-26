@@ -1987,13 +1987,18 @@ class TestManagedIcebergBehaviorFlag(DatabricksAdapterBase):
         result = adapter.is_uniform(mock_config)
         assert result is False
 
+    @pytest.mark.parametrize("materialization", ["incremental", "table", "snapshot", "seed"])
     def test_is_uniform_with_uniform_iceberg_returns_true(
-        self, adapter, mock_config, unity_catalog_relation
+        self, adapter, mock_config, unity_catalog_relation, materialization
     ):
-        """Test that is_uniform returns True for UniForm Iceberg tables"""
+        """Test that is_uniform returns True for UniForm Iceberg tables across supported materializations"""
         adapter.behavior.use_managed_iceberg.setting = False  # Default
         adapter.build_catalog_relation = Mock(return_value=unity_catalog_relation)
         adapter.has_capability = Mock(return_value=True)  # Has iceberg capability
+        mock_config.get.side_effect = lambda key, default=None: {
+            "tblproperties": {},
+            "materialized": materialization,
+        }.get(key, default)
 
         result = adapter.is_uniform(mock_config)
         assert result is True

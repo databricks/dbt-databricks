@@ -3,6 +3,7 @@
 ### Fixes
 
 - Require `certifi>=2026.10.23` to pick up a security fix in its CA certificate bundle ([#1740](https://github.com/databricks/dbt-databricks/pull/1740))
+- Unblock `table_format: iceberg` for seeds in Unity Catalog ([#1734](https://github.com/databricks/dbt-databricks/issues/1734))
 
 ## dbt-databricks 1.12.7 (Oct 12, 2026)
 
