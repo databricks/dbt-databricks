@@ -10,7 +10,7 @@
 
 ### Fixes
 
-- Stop `dbt clone` from failing on Unity Catalog tables with a row filter or column mask, which can't be shallow-cloned; they now clone as a view over the deferred table that applies its policies for whoever queries it
+- Stop `dbt clone` from failing on Unity Catalog tables with a row filter or column mask, which can't be shallow-cloned; they now clone as a view over the deferred table that applies its policies for whoever queries it ([#1745](https://github.com/databricks/dbt-databricks/pull/1745))
 - Stop `dbt clone` from failing on materialized views with a row filter and streaming tables with a row filter or column mask ([#1744](https://github.com/databricks/dbt-databricks/pull/1744))
 - Stop `dbt clone` from failing on views whose enforced contract changed since the deferred state ([#1742](https://github.com/databricks/dbt-databricks/pull/1742) resolves [#1349](https://github.com/databricks/dbt-databricks/issues/1349))
 - Stop failing with `UNRESOLVED_COLUMN` when `view_update_via_alter` changes a view query that drops a column whose description also changed, and keep persisted column comments after the query change for views inheriting a non-Delta `file_format` ([#1736](https://github.com/databricks/dbt-databricks/pull/1736))
