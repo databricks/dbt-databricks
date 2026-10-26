@@ -122,6 +122,8 @@ class TestCreateViewAs(MacroTestBase):
             ("clone", "view", True, False),
             ("clone", "materialized_view", False, False),
             ("clone", "streaming_table", False, False),
+            ("clone", "table", False, False),
+            ("clone", "incremental", False, False),
         ],
     )
     def test_validate_view_model_under_clone(

@@ -142,3 +142,45 @@ class TestCloneRequiresDrop(MacroTestBase):
         # reset Delta history and break in-place full-refresh shallow clones.
         relation = self._relation(is_table=True, is_shallow_clone=False, databricks_table_type=None)
         assert self._requires_drop(template_bundle, relation) == "False"
+
+
+class TestCloneSourceHasPolicies(MacroTestBase):
+    @pytest.fixture(scope="class")
+    def template_name(self) -> str:
+        return "strategies.sql"
+
+    @pytest.fixture(scope="class")
+    def macro_folders_to_load(self) -> list:
+        return ["macros/materializations/clone", "macros/relations", "macros"]
+
+    @pytest.fixture
+    def source(self):
+        relation = Mock(spec=DatabricksRelation)
+        relation.database = "Main"
+        relation.schema = "Prod"
+        relation.identifier = "Orders"
+        relation.is_hive_metastore = Mock(return_value=False)
+        return relation
+
+    def test_policies_sql_reads_row_filters_and_column_masks(self, template_bundle, source):
+        sql = self.run_macro(template_bundle.template, "clone_source_policies_sql", source)
+
+        expected = self.clean_sql(
+            "select 1 from `Main`.`information_schema`.`row_filters` "
+            "where table_catalog = 'main' and table_schema = 'prod' and table_name = 'orders' "
+            "union all "
+            "select 1 from `Main`.`information_schema`.`column_masks` "
+            "where table_catalog = 'main' and table_schema = 'prod' and table_name = 'orders'"
+        )
+        assert sql == expected
+
+    def test_hive_metastore_source_skips_the_lookup(self, template_bundle, source):
+        # Hive metastore has no information_schema policy views to query.
+        source.is_hive_metastore.return_value = True
+        load_result = Mock()
+        template_bundle.context["load_result"] = load_result
+
+        rendered = self.run_macro_raw(template_bundle.template, "clone_source_has_policies", source)
+
+        assert rendered.strip() == "False"
+        load_result.assert_not_called()
