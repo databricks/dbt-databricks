@@ -325,7 +325,7 @@ class DatabricksCredentialManager(DataClassDictMixin):
         return base
 
     def authenticate_with_pat(self) -> Config:
-        return Config(**self._config_kwargs(host=self.host, token=self.token))
+        return Config(**self._config_kwargs(host=self.host, token=self.token, auth_type="pat"))
 
     def authenticate_with_oauth_m2m(self) -> Config:
         return Config(

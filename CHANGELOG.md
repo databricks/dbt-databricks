@@ -1,3 +1,9 @@
+## dbt-databricks 1.12.9 (TBD)
+
+### Fixes
+
+- Connect with a profile's personal access token when `DATABRICKS_CLIENT_ID` and `DATABRICKS_CLIENT_SECRET` are also set in the environment, instead of failing with `more than one authorization method configured` (thanks @gibkim!) ([#1717](https://github.com/databricks/dbt-databricks/pull/1717) resolves [#1292](https://github.com/databricks/dbt-databricks/issues/1292))
+
 ## dbt-databricks 1.12.8 (Oct 24, 2026)
 
 ### Fixes
