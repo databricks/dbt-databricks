@@ -564,6 +564,28 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
                     table = adapter._get_schema_for_catalog("database", "schema", "name")
         assert len(table.rows) == 0
 
+    @patch("dbt.adapters.databricks.api_client.DatabricksApiClient")
+    def test_get_schema_for_catalog__omitted_none_columns_emit_no_warnings(self, _):
+        # `to_column_dict` omits None-valued keys, so a schema with no owner or comments
+        # yields rows without `table_owner`, `table_comment` and `comment`.
+        row = {
+            k: v
+            for k, v in _catalog_row("12345").items()
+            if k not in ("table_owner", "table_comment", "comment")
+        }
+        with patch.object(DatabricksAdapter, "_list_relations_with_information") as list_info:
+            list_info.return_value = [(Mock(), "info")]
+            with patch.object(DatabricksAdapter, "_get_columns_for_catalog") as get_columns:
+                get_columns.return_value = [row]
+                adapter = DatabricksAdapter(Mock(flags={}), get_context("spawn"))
+                with warnings.catch_warnings():
+                    warnings.simplefilter("error", RuntimeWarning)
+                    table = adapter._get_schema_for_catalog("cat", "schema", "name")
+
+        assert "comment" not in table.column_names
+        types = dict(zip(table.column_names, table.column_types))
+        assert isinstance(types["column_name"], agate.data_types.text.Text)
+
     def test_simple_catalog_relation(self):
         self.maxDiff = None
         rel_type = DatabricksRelation.get_relation_type.Table
