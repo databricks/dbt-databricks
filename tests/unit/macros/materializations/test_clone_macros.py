@@ -1,3 +1,4 @@
+import json
 from unittest.mock import Mock
 
 import pytest
@@ -184,3 +185,46 @@ class TestCloneSourceHasPolicies(MacroTestBase):
 
         assert rendered.strip() == "False"
         load_result.assert_not_called()
+
+    def _has_policies(self, template_bundle, source, *, use_json, capability, metadata=None):
+        context = template_bundle.context
+        context["adapter"].behavior.use_describe_as_json_for_relation_metadata.no_warn = use_json
+        context["adapter"].has_dbr_capability.return_value = capability
+        describe = Mock(return_value=Mock(rows=[{"json_metadata": json.dumps(metadata or {})}]))
+        context["describe_table_extended_as_json"] = describe
+        context["fromjson"] = json.loads
+        context["statement"] = Mock(return_value="")
+        load_result = Mock(return_value=Mock(table=Mock(rows=[(1,)])))
+        context["load_result"] = load_result
+        rendered = self.run_macro_raw(template_bundle.template, "clone_source_has_policies", source)
+        return rendered.strip(), describe, load_result
+
+    @pytest.mark.parametrize(
+        "metadata, expected",
+        [
+            ({"row_filter": {"column_names": ["region"]}}, "True"),
+            ({"column_masks": [{"column_name": "password"}]}, "True"),
+            ({}, "False"),
+            ({"row_filter": None, "column_masks": []}, "False"),
+        ],
+    )
+    def test_describe_json_reads_policies_when_enabled(
+        self, template_bundle, source, metadata, expected
+    ):
+        has_policies, describe, load_result = self._has_policies(
+            template_bundle, source, use_json=True, capability=True, metadata=metadata
+        )
+
+        assert has_policies == expected
+        describe.assert_called_once_with(source)
+        load_result.assert_not_called()
+
+    @pytest.mark.parametrize("use_json, capability", [(False, True), (True, False)])
+    def test_information_schema_fallback(self, template_bundle, source, use_json, capability):
+        has_policies, describe, load_result = self._has_policies(
+            template_bundle, source, use_json=use_json, capability=capability
+        )
+
+        assert has_policies == "True"
+        describe.assert_not_called()
+        load_result.assert_called_once_with("clone_source_policies")

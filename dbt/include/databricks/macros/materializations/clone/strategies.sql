@@ -26,6 +26,12 @@
   {#- UC rejects a shallow clone of a table with a row filter or column mask -#}
   {%- if relation.is_hive_metastore() -%}
     {{ return(False) }}
+  {#- Mirrors adapter.is_describe_as_json_supported, which isn't callable from Jinja -#}
+  {%- elif adapter.behavior.use_describe_as_json_for_relation_metadata.no_warn
+        and adapter.has_dbr_capability('describe_table_extended_as_json') -%}
+    {%- set described = describe_table_extended_as_json(relation) -%}
+    {%- set metadata = fromjson(described.rows[0]['json_metadata']) -%}
+    {{ return(true if metadata.get('row_filter') or metadata.get('column_masks') else false) }}
   {%- else -%}
     {%- call statement('clone_source_policies', fetch_result=True) -%}
       {{ clone_source_policies_sql(relation) }}

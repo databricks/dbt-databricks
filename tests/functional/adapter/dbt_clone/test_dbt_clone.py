@@ -4,7 +4,11 @@ from dbt.tests.adapter.dbt_clone.test_dbt_clone import BaseClone, BaseClonePossi
 from dbt.tests.util import run_dbt
 
 from tests.functional.adapter.dbt_clone import fixtures
-from tests.functional.adapter.fixtures import MaterializationV2Mixin, RerunSafeMixin
+from tests.functional.adapter.fixtures import (
+    MaterializationV2Mixin,
+    RequiresDescribeAsJsonCapabilityMixin,
+    RerunSafeMixin,
+)
 
 
 class CleanupMixin:
@@ -521,3 +525,30 @@ class TestCloneColumnMaskedTable(MaterializationV2Mixin, TestCloneRowFilteredTab
     policy_function = "password_mask(password string) returns string return '*****'"
     select_columns = "id, password"
     expected_rows = [("abc123", "*****")]
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestCloneRowFilterAppliedOutsideDbtDescribeAsJson(
+    RequiresDescribeAsJsonCapabilityMixin, TestCloneRowFilterAppliedOutsideDbt
+):
+    """The DESCRIBE TABLE EXTENDED AS JSON lookup also finds a row filter."""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"use_describe_as_json_for_relation_metadata": True}}
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestCloneColumnMaskedTableDescribeAsJson(
+    RequiresDescribeAsJsonCapabilityMixin, TestCloneColumnMaskedTable
+):
+    """The DESCRIBE TABLE EXTENDED AS JSON lookup also finds a column mask."""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {
+                "use_materialization_v2": True,
+                "use_describe_as_json_for_relation_metadata": True,
+            }
+        }
