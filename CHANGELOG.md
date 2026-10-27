@@ -1,3 +1,9 @@
+## dbt-databricks 1.12.9 (TBD)
+
+### Fixes
+
+- Stop `dbt docs generate` from emitting a `RuntimeWarning` per schema for catalog metadata columns that are absent from the results (thanks @emrekabalcii!) ([#1749](https://github.com/databricks/dbt-databricks/pull/1749) resolves [#1748](https://github.com/databricks/dbt-databricks/issues/1748))
+
 ## dbt-databricks 1.12.8 (Oct 24, 2026)
 
 ### Fixes
