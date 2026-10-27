@@ -107,7 +107,10 @@ class DatabricksRelation(BaseRelation):
 
     def __post_init__(self) -> None:
         if self.identifier and self.type:
-            if len(self.identifier) > self.relation_max_name_length():
+            identifier = self.identifier
+            if self.type == self.CTE and identifier.startswith("`") and identifier.endswith("`"):
+                identifier = identifier[1:-1].replace("``", "`")
+            if len(identifier) > self.relation_max_name_length():
                 raise DbtRuntimeError(
                     f"Databricks has a maximum identifier length of "
                     f"{self.relation_max_name_length()} characters. "

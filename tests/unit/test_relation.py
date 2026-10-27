@@ -278,6 +278,24 @@ class TestAddEphemeralPrefix:
     def test_add_ephemeral_prefix__quotes_and_escapes(self, name, expected):
         assert DatabricksRelation.add_ephemeral_prefix(name) == expected
 
+    @pytest.mark.parametrize(
+        "name,valid",
+        [
+            ("a" * 242, True),
+            ("a" * 243, True),
+            ("a" * 244, False),
+            ("`" * 243, True),
+            ("`" * 244, False),
+        ],
+    )
+    def test_create_ephemeral_from__length_ignores_quoting(self, name, valid):
+        config = Mock(identifier=name)
+        if valid:
+            DatabricksRelation.create_ephemeral_from(config)
+        else:
+            with pytest.raises(DbtRuntimeError):
+                DatabricksRelation.create_ephemeral_from(config)
+
     def test_create_ephemeral_from__renders_quoted_name(self):
         config = Mock(identifier="client-employment_delta")
         rendered = DatabricksRelation.create_ephemeral_from(config).render()
