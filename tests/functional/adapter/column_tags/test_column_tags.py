@@ -298,24 +298,10 @@ class TestDropTaggedColumn(RerunSafeMixin, MaterializationV2Mixin):
         assert self._column_tags(project) == {("account_number", "pii", "true")}
 
 
-@pytest.mark.skip_profile("databricks_cluster")
-class TestDropGovernedTaggedColumn(RerunSafeMixin, MaterializationV2Mixin):
-    @pytest.fixture(scope="class")
-    def relations_to_reset(self):
-        return ("drop_model",)
-
+class GovernedTagMixin:
     @pytest.fixture(scope="class")
     def governed_tag_key(self):
         return f"dbt_ft_drop_gov_{uuid.uuid4().hex[:12]}"
-
-    @pytest.fixture(scope="class")
-    def models(self, governed_tag_key):
-        return {
-            "drop_model.sql": fixtures.drop_tagged_column_model,
-            "schema.yml": fixtures.drop_governed_tagged_column_initial_schema.format(
-                tag_key=governed_tag_key
-            ),
-        }
 
     @pytest.fixture(scope="class", autouse=True)
     def ensure_governed_tag(self, project, governed_tag_key):
@@ -351,6 +337,29 @@ class TestDropGovernedTaggedColumn(RerunSafeMixin, MaterializationV2Mixin):
         )
         return {(row[0], row[1], row[2]) for row in rows}
 
+    def _columns(self, project):
+        return {
+            row[0]
+            for row in project.run_sql("DESCRIBE TABLE drop_model", fetch="all")
+            if row[0] and not row[0].startswith("#")
+        }
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestDropGovernedTaggedColumn(RerunSafeMixin, GovernedTagMixin, MaterializationV2Mixin):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("drop_model",)
+
+    @pytest.fixture(scope="class")
+    def models(self, governed_tag_key):
+        return {
+            "drop_model.sql": fixtures.drop_tagged_column_model,
+            "schema.yml": fixtures.drop_governed_tagged_column_initial_schema.format(
+                tag_key=governed_tag_key
+            ),
+        }
+
     def test_drop_governed_tagged_column(self, project, governed_tag_key):
         util.run_dbt(["run"])
         assert self._column_tags(project) == {("email", governed_tag_key, "true")}
@@ -362,14 +371,79 @@ class TestDropGovernedTaggedColumn(RerunSafeMixin, MaterializationV2Mixin):
         )
         util.run_dbt(["run"])
 
-        columns = {
-            row[0]
-            for row in project.run_sql("DESCRIBE TABLE drop_model", fetch="all")
-            if row[0] and not row[0].startswith("#")
-        }
+        columns = self._columns(project)
         assert "email" not in columns
         assert {"id", "account_number"}.issubset(columns)
         assert self._column_tags(project) == set()
+
+
+class DropGovernedTaggedColumnOnReplaceMixin(RerunSafeMixin, GovernedTagMixin):
+    """A replace must drop a column carrying a governed tag applied outside dbt (#1684)."""
+
+    materialized = "table"
+    replace_args: list[str] = []
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("drop_model",)
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "drop_model.sql": fixtures.replace_governed_tagged_column_model.format(
+                materialized=self.materialized
+            )
+        }
+
+    def test_replace_drops_governed_tagged_column(self, project, governed_tag_key):
+        util.run_dbt(["run"])
+        for column in ("id", "email"):
+            project.run_sql(
+                f"ALTER TABLE {{database}}.{{schema}}.drop_model "
+                f"ALTER COLUMN {column} SET TAGS ('{governed_tag_key}' = 'true')"
+            )
+
+        util.write_file(
+            fixtures.replace_governed_tagged_column_updated_model.format(
+                materialized=self.materialized
+            ),
+            "models",
+            "drop_model.sql",
+        )
+        util.run_dbt(["run", *self.replace_args])
+
+        assert self._columns(project) == {"id", "account_number"}
+        assert self._column_tags(project) == {("id", governed_tag_key, "true")}
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestDropGovernedTaggedColumnOnTableReplace(
+    DropGovernedTaggedColumnOnReplaceMixin, MaterializationV2Mixin
+):
+    pass
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestDropGovernedTaggedColumnOnTableReplaceV1(
+    DropGovernedTaggedColumnOnReplaceMixin, MaterializationV1Mixin
+):
+    pass
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestDropGovernedTaggedColumnOnIncrementalFullRefresh(
+    DropGovernedTaggedColumnOnReplaceMixin, MaterializationV2Mixin
+):
+    materialized = "incremental"
+    replace_args = ["--full-refresh"]
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestDropGovernedTaggedColumnOnIncrementalFullRefreshV1(
+    DropGovernedTaggedColumnOnReplaceMixin, MaterializationV1Mixin
+):
+    materialized = "incremental"
+    replace_args = ["--full-refresh"]
 
 
 @pytest.mark.skip_profile("databricks_cluster")

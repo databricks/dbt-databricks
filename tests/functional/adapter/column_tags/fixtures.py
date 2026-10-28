@@ -110,6 +110,16 @@ models:
       - name: account_number
 """
 
+replace_governed_tagged_column_model = """
+{{{{ config(materialized='{materialized}') }}}}
+select 1 as id, 'abc123' as account_number, 'x@y.com' as email
+"""
+
+replace_governed_tagged_column_updated_model = """
+{{{{ config(materialized='{materialized}') }}}}
+select 1 as id, 'abc123' as account_number
+"""
+
 snapshot_column_tag_sql = """
 {% snapshot snapshot %}
     {{

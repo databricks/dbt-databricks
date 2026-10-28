@@ -1,3 +1,9 @@
+## dbt-databricks 1.13.1 (TBD)
+
+### Fixes
+
+- Unset tags on columns that a `table` model or incremental full refresh removes, so replacing a relation no longer fails with `CANNOT_DROP_TAGGED_COLUMN` when a removed column carries a governed tag ([#1707](https://github.com/databricks/dbt-databricks/pull/1707) resolves [#1684](https://github.com/databricks/dbt-databricks/issues/1684))
+
 ## dbt-databricks 1.13.0 (Oct 28, 2026)
 
 ### Features
