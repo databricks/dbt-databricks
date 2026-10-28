@@ -4,11 +4,17 @@ import pytest
 from agate import Row
 from dbt.exceptions import DbtRuntimeError
 
+from dbt.adapters.databricks.relation_configs.column_comments import ColumnCommentsConfig
+from dbt.adapters.databricks.relation_configs.column_tags import ColumnTagsConfig
+from dbt.adapters.databricks.relation_configs.comment import CommentConfig
 from dbt.adapters.databricks.relation_configs.query import (
     DescribeQueryProcessor,
     QueryConfig,
     QueryProcessor,
 )
+from dbt.adapters.databricks.relation_configs.tags import TagsConfig
+from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
+from dbt.adapters.databricks.relation_configs.view import ViewConfig
 
 sql = "select * from foo"
 
@@ -106,3 +112,82 @@ class TestDescribeQueryProcessor:
         }
         spec = DescribeQueryProcessor.from_relation_results(results)
         assert spec == QueryConfig(query=sql)
+
+
+class TestViewQueryChanges:
+    @staticmethod
+    def view_config(query="select id from foo", **components):
+        return ViewConfig(
+            config={
+                "tags": TagsConfig(set_tags={}),
+                "tblproperties": TblPropertiesConfig(tblproperties={}),
+                "query": QueryConfig(query=query),
+                "comment": CommentConfig(),
+                "column_comments": ColumnCommentsConfig(comments={"id": ""}),
+                "column_tags": ColumnTagsConfig(set_column_tags={}),
+                **components,
+            }
+        )
+
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "select * from foo",
+            "select foo.* from foo",
+            "with src as (select * from foo) select id from src",
+            "select * except (secret) from foo",
+            "select count(*) from foo",
+            "select id * 2 from foo",
+            "select '*' as literal from foo",
+            "select id from foo -- *",
+        ],
+    )
+    def test_unchanged_query_containing_star_is_reapplied(self, query):
+        config = self.view_config(query)
+
+        changeset = config.get_changeset(self.view_config(query))
+
+        assert changeset is not None
+        assert changeset.changes == {"query": config.config["query"]}
+        assert not changeset.requires_full_refresh
+
+    def test_unchanged_explicit_query_has_no_changes(self):
+        assert self.view_config().get_changeset(self.view_config()) is None
+
+    def test_changed_explicit_query_is_reapplied(self):
+        config = self.view_config("select msg from foo")
+
+        changeset = config.get_changeset(self.view_config())
+
+        assert changeset is not None
+        assert changeset.changes == {"query": config.config["query"]}
+
+    def test_column_comment_only_change_does_not_reapply_query(self):
+        comments = ColumnCommentsConfig(comments={"id": "new comment"}, persist=True)
+        config = self.view_config(column_comments=comments)
+
+        changeset = config.get_changeset(self.view_config())
+
+        assert changeset is not None
+        assert changeset.changes == {
+            "column_comments": ColumnCommentsConfig(comments={"`id`": "new comment"}, persist=True)
+        }
+        assert not changeset.requires_full_refresh
+
+    def test_star_query_preserves_other_configuration_changes(self):
+        properties = TblPropertiesConfig(tblproperties={"key": "value"})
+        config = self.view_config("select * from foo", tblproperties=properties)
+
+        changeset = config.get_changeset(self.view_config("select * from foo"))
+
+        assert changeset is not None
+        assert changeset.changes == {"query": config.config["query"], "tblproperties": properties}
+
+    @pytest.mark.parametrize("query", ["select id from foo", "select * from foo"])
+    def test_description_change_still_requires_replacement(self, query):
+        config = self.view_config(query, comment=CommentConfig(comment="new comment", persist=True))
+
+        changeset = config.get_changeset(self.view_config(query))
+
+        assert changeset is not None
+        assert changeset.requires_full_refresh
