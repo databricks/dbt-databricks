@@ -1,6 +1,6 @@
 # Streaming Table Flow
 
-_Last updated: 2026-09-22_
+_Last updated: 2026-10-13_
 
 > Streaming tables do **not** use the `use_materialization_v2` flag — there is a single path.
 > Source: `dbt/include/databricks/macros/materializations/streaming_table.sql`.
@@ -39,7 +39,8 @@ flowchart TD
     CHECK -- yes --> NOOP[execute_no_op\n（no server change）]
     CHECK -- no --> INTX["Run pre-hooks (inside transaction)"]
     INTX --> EXEC["execute_multiple_statements(build_sql)"]
-    EXEC --> GRANTS[Apply grants]
+    EXEC --> DOCS["validate_persist_doc_columns<br/>(warn on documented columns missing from the relation)"]
+    DOCS --> GRANTS[Apply grants]
     GRANTS --> POSTIN["Run post-hooks (inside transaction)"]
     NOOP --> POSTOUT
     POSTIN --> POSTOUT["Run post-hooks (outside transaction)"]
@@ -62,3 +63,7 @@ Notes:
 - Ordinary refreshes and unrelated alters do not reapply tags. Every create or replacement path
   appends the complete desired table and column tag state through `get_set_tag_statements` while
   building the statement list. The execution macro only executes that completed list.
+- Configuration diff reads table tags through the Unity Catalog Entity Tag Assignments API;
+  column tags continue to use `information_schema`. If the API denies access (for example, a token
+  without the `unity-catalog` scope), table tags for the rest of the run are read from
+  `information_schema` instead.
