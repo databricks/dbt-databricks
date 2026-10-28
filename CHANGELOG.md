@@ -1,3 +1,9 @@
+## dbt-databricks 1.13.1 (TBD)
+
+### Fixes
+
+- Make the new table visible to the model's post-hooks and the rest of the run when a table or incremental model replaces a view, materialized view, or streaming table ([#1708](https://github.com/databricks/dbt-databricks/pull/1708))
+
 ## dbt-databricks 1.13.0 (Oct 28, 2026)
 
 ### Features

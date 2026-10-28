@@ -1,6 +1,6 @@
 # Incremental Flow
 
-_Last updated: 2026-10-13_
+_Last updated: 2026-10-28_
 
 > Two diagrams follow: **Existing** is the default path, **New** is used when the
 > `use_materialization_v2` behavior flag is enabled. See [flow/README.md](README.md) for what the
@@ -95,3 +95,8 @@ path, V2 does not call `persist_docs` — relation and column comments are handl
 
 Safe staging renames tables, which Databricks rejects for Hive metastore managed Delta tables on
 S3 unless `spark.databricks.delta.alterTable.rename.enabledOnAWS` is set on the cluster.
+
+When a replacement drops the existing relation or uses safe staging, it calls
+`cache_replaced_relation` (see the [replace flow](replace_flow.md)) after creating the table and
+before post-hooks, so the model's post-hooks and later lookups in the run see the new table.
+Incremental merges and `CREATE OR REPLACE` rebuilds do not touch the relation cache.
