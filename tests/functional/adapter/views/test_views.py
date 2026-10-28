@@ -1,10 +1,20 @@
+from importlib import metadata
+
 import pytest
 from agate import Row
 from dbt.artifacts.schemas.results import RunStatus
 from dbt.tests import util
+from packaging import version
 
 from tests.functional.adapter.fixtures import RequiresDescribeAsJsonCapabilityMixin, RerunSafeMixin
 from tests.functional.adapter.views import fixtures
+
+# dbt-core < 1.12.2 reports view_update_via_alter as an unrecognized config key.
+WARN_ERROR_VIEW_UPDATE_VIA_ALTER = (
+    ["--warn-error"]
+    if version.parse(metadata.version("dbt-core")) >= version.parse("1.12.2")
+    else []
+)
 
 
 class BaseUpdateView:
@@ -712,7 +722,7 @@ class TestViewLifecycleIgnoresMaterializationFlag(RerunSafeMixin):
 
     def test_alter_opt_in_selects_the_path(self, project):
         util.run_dbt(["seed"])
-        util.run_dbt(["--warn-error", "run"])
+        util.run_dbt([*WARN_ERROR_VIEW_UPDATE_VIA_ALTER, "run"])
         for name in ("altered_view", "replaced_view"):
             relation = util.relation_from_name(project.adapter, name)
             with util.get_connection(project.adapter):
@@ -725,7 +735,7 @@ class TestViewLifecycleIgnoresMaterializationFlag(RerunSafeMixin):
                 )
             project.run_sql(comment_sql)
 
-        util.run_dbt(["--warn-error", "run"])
+        util.run_dbt([*WARN_ERROR_VIEW_UPDATE_VIA_ALTER, "run"])
 
         for name, comment in (("altered_view", "external comment"), ("replaced_view", None)):
             columns = project.run_sql(f"describe {{database}}.{{schema}}.{name}", fetch="all")
