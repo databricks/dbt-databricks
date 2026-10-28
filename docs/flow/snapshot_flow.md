@@ -1,6 +1,6 @@
 # Snapshot Flow
 
-_Last updated: 2026-09-30_
+_Last updated: 2026-10-13_
 
 > Snapshots do **not** use the `use_materialization_v2` flag — there is a single path. Source:
 > `dbt/include/databricks/macros/materializations/snapshot.sql`. Strategy dispatch and the
@@ -42,7 +42,7 @@ flowchart TD
     CLEAN -- yes --> POSTSNAP[post_snapshot cleanup]
     CLEAN -- no --> CONST
     POSTSNAP --> CONST[Persist constraints]
-    CONST --> OPT[Run optimize]
+    CONST --> OPT[Run optimize for zorder / liquid_clustered_by]
     OPT --> POSTOUT["Run post-hooks (outside transaction)"]
 ```
 

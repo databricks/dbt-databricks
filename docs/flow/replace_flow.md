@@ -1,6 +1,6 @@
 # Replace Flow
 
-_Last updated: 2026-10-16_
+_Last updated: 2026-10-28_
 
 Shared decision tree used when view, materialized-view, streaming-table, or metric-view helpers must
 replace an existing relation. Table and incremental V2 use their dedicated
@@ -21,11 +21,12 @@ flowchart TD
     METRIC -- yes --> METRICSQL[get_replace_metric_view_sql]
     METRIC -- no --> COMPAT{"Target and existing are both materialized views\nand the model sets a Compatibility Mode location?"}
     COMPAT -- yes --> COMPATSQL["get_mv_compatibility_rebuild_sql:<br/>same location and partitions: CREATE OR REPLACE;<br/>otherwise raise before any DROP"]
-    COMPAT -- no --> SAFE{use_safer_relation_operations?}
+    COMPAT -- no --> VIEW{"Existing and target are ordinary views?"}
+    VIEW -- yes --> VIEWSQL[get_replace_view_sql]
+    VIEW -- no --> SAFE{use_safer_relation_operations?}
 
     SAFE -- false --> DIRECT{"Same relation type, existing can be replaced,\nand configured file format is Delta?"}
     DIRECT -- yes --> TYPE{Existing relation type?}
-    TYPE -- view --> VIEWSQL[get_replace_view_sql]
     TYPE -- "materialized view" --> MVSQL[get_replace_materialized_view_sql]
     DIRECT -- no --> TARGETRENAME{Target can be renamed?}
     TYPE -- other --> TARGETRENAME
@@ -47,10 +48,8 @@ ignores `use_safer_relation_operations`. It raises for an empty or changed locat
 partition change. The materialized view alter path's `partition_by` branch uses the same decision.
 Rebuilds whose model sets no location skip it and run no extra metadata queries.
 
-Outside that branch, direct replacement is available only when safe operations are disabled and
-the existing and target relations have the same type, the existing relation is replaceable, and the
-configured file format is Delta. In practice, the supported direct branches here are views and
-materialized views; table targets have already failed at the initial guard.
+View-to-view replacement uses `CREATE OR REPLACE VIEW` through `get_create_view_as_sql`,
+regardless of file format or safer operations.
 
 Tables and views can be renamed, except that an existing Hive metastore table is never renamed:
 Databricks rejects `ALTER TABLE ... RENAME TO` for managed Delta tables on S3. A view replacing a
