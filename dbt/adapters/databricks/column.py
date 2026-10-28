@@ -14,6 +14,7 @@ class DatabricksColumn(SparkColumn):
     not_null: Optional[bool] = None
     mask: Optional[dict[str, str]] = None
     databricks_tags: Optional[dict[str, str]] = None
+    generated_as: Optional[dict[str, dict]] = None
 
     TYPE_LABELS: ClassVar[dict[str, str]] = {
         "LONG": "BIGINT",
@@ -160,6 +161,8 @@ class DatabricksColumn(SparkColumn):
             enriched_column.mask = model_column["column_mask"]
         if model_column.get("databricks_tags"):
             enriched_column.databricks_tags = model_column["databricks_tags"]
+        if model_column.get("generated_as"):
+            enriched_column.generated_as = model_column["generated_as"]
 
         enriched_column.not_null = not_null
         return enriched_column
@@ -169,6 +172,34 @@ class DatabricksColumn(SparkColumn):
         column_str = f"{self.quoted} {self.dtype}"
         if self.not_null:
             column_str += " NOT NULL"
+        # Generated Column logic for expressions & identity columns
+        if self.generated_as:
+            # Expressions
+            if "expr" in self.generated_as:
+                column_str += f" GENERATED ALWAYS AS ({self.generated_as['expr']})"
+
+            # Identity
+            elif "identity" in self.generated_as:
+                identity_dict: dict = self.generated_as["identity"]
+                always_default = "ALWAYS" if identity_dict["always"] else "BY DEFAULT"
+                column_str += f" GENERATED {always_default} AS IDENTITY"
+
+                if "start" in identity_dict or "step" in identity_dict:
+                    # Start
+                    if "start" in identity_dict:
+                        start_str = f"START WITH {identity_dict['start']} "
+                    else:
+                        start_str = ""
+                    # Step
+                    if "step" in identity_dict:
+                        step_str = f"INCREMENT BY {identity_dict['step']} "
+                    else:
+                        step_str = ""
+                    column_str += f" ( {start_str}{step_str})"
+
+            # Neither is set - do nothing
+            else:
+                pass
         if self.comment:
             comment = self.comment.replace("'", "\\'")
             column_str += f" COMMENT '{comment}'"

@@ -594,6 +594,7 @@ class TestDatabricksAdapter(DatabricksAdapterBase):
             "column_index": 0,
             "dtype": None,
             "mask": None,
+            "generated_as": None,
             "numeric_scale": None,
             "numeric_precision": None,
             "char_size": None,

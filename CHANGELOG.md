@@ -1,3 +1,9 @@
+## dbt-databricks next
+
+### Features
+
+- Support for Generated columns (expression and identity) when using materialization v2 ([#1753](https://github.com/databricks/dbt-databricks/pull/1753))
+
 ## dbt-databricks 1.13.0 (Oct 28, 2026)
 
 ### Features
