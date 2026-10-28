@@ -379,7 +379,6 @@ models:
         constraints:
           - type: not_null
           - type: primary_key
-            name: pk_rely_parent
             expression: RELY
   - name: rely_child
     config:
@@ -458,6 +457,55 @@ incremental_rely_pk_child_sql = """
 select 1 as parent_n, 10 as child_id
 """
 
+incremental_multiple_fk_schema_yml = """
+version: 2
+models:
+  - name: multi_fk_parent
+    config:
+      materialized: table
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: int
+        constraints:
+          - type: not_null
+          - type: primary_key
+            name: pk_multi_fk_parent
+  - name: multi_fk_child
+    config:
+      materialized: incremental
+      unique_key: child_id
+      on_schema_change: append_new_columns
+      contract:
+        enforced: true
+    columns:
+      - name: child_id
+        data_type: int
+      - name: parent_a
+        data_type: int
+        constraints:
+          - type: foreign_key
+            to: ref('multi_fk_parent')
+            to_columns: ["id"]
+      - name: parent_b
+        data_type: int
+        constraints:
+          - type: foreign_key
+            to: ref('multi_fk_parent')
+            to_columns: ["id"]
+"""
+
+incremental_multiple_fk_parent_sql = """
+select 1 as id
+"""
+
+incremental_multiple_fk_child_sql = """
+-- depends_on: {{ ref('multi_fk_parent') }}
+
+select 1 as child_id, 1 as parent_a, 1 as parent_b
+"""
+
 incremental_custom_rely_pk_parent_sql = """
 select 1 as n, timestamp'2026-01-01' as ts
 """
@@ -519,4 +567,235 @@ models:
         data_type: int
       - name: color
         data_type: string
+"""
+
+incremental_v2_unnamed_pk_cascade_schema_yml = """
+version: 2
+models:
+  - name: v2_unnamed_pk_parent
+    config:
+      materialized: incremental
+      unique_key: n
+      on_schema_change: append_new_columns
+      contract:
+        enforced: true
+    columns:
+      - name: n
+        data_type: int
+        constraints:
+          - type: not_null
+          - type: primary_key
+  - name: v2_unnamed_pk_child
+    config:
+      materialized: table
+      contract:
+        enforced: true
+    constraints:
+      - type: foreign_key
+        name: fk_v2_unnamed_pk_child
+        columns: ["parent_n"]
+        to: ref('v2_unnamed_pk_parent')
+        to_columns: ["n"]
+    columns:
+      - name: parent_n
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: child_id
+        data_type: int
+"""
+
+incremental_v2_unnamed_pk_parent_sql = """
+select 1 as n
+"""
+
+incremental_v2_unnamed_pk_child_sql = """
+-- depends_on: {{ ref('v2_unnamed_pk_parent') }}
+
+select 1 as parent_n, 10 as child_id
+"""
+
+safer_replace_unnamed_keys_schema_yml = """
+version: 2
+models:
+  - name: safer_keys_parent
+    config:
+      materialized: table
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: int
+        constraints:
+          - type: not_null
+          - type: primary_key
+  - name: safer_keys_child
+    config:
+      materialized: incremental
+      unique_key: child_id
+      on_schema_change: append_new_columns
+      use_safer_relation_operations: true
+      contract:
+        enforced: true
+    columns:
+      - name: child_id
+        data_type: int
+        constraints:
+          - type: not_null
+          - type: primary_key
+      - name: parent_id
+        data_type: int
+        constraints:
+          - type: foreign_key
+            to: ref('safer_keys_parent')
+            to_columns: ["id"]
+"""
+
+safer_replace_unnamed_keys_parent_sql = """
+select 1 as id
+"""
+
+safer_replace_unnamed_keys_child_sql = """
+-- depends_on: {{ ref('safer_keys_parent') }}
+
+select 1 as child_id, 1 as parent_id
+"""
+
+safer_replace_table_keys_schema_yml = """
+version: 2
+models:
+  - name: safer_table_unnamed_pk
+    config:
+      materialized: table
+      use_safer_relation_operations: true
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: int
+        constraints:
+          - type: not_null
+          - type: primary_key
+  - name: safer_table_named_pk
+    config:
+      materialized: table
+      use_safer_relation_operations: true
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: int
+        constraints:
+          - type: not_null
+          - type: primary_key
+            name: safer_table_named_pk_pk
+"""
+
+safer_replace_table_keys_sql = """
+select 1 as id
+"""
+
+safer_replace_failure_parent_sql = """
+select 1 as id
+"""
+
+safer_replace_failure_child_sql = """
+-- depends_on: {{ ref('safer_failure_parent') }}
+
+select 1 as id
+"""
+
+safer_replace_failure_child_updated_sql = """
+-- depends_on: {{ ref('safer_failure_parent') }}
+
+select 2 as id
+"""
+
+
+def _safer_replace_failure_schema_yml(child_constraints):
+    return f"""
+version: 2
+models:
+  - name: safer_failure_parent
+    config:
+      materialized: table
+      contract:
+        enforced: true
+    columns:
+      - name: id
+        data_type: int
+  - name: safer_failure_child
+    config:
+      materialized: table
+      use_safer_relation_operations: true
+      contract:
+        enforced: true
+{child_constraints}    columns:
+      - name: id
+        data_type: int
+"""
+
+
+safer_replace_failure_schema_yml = _safer_replace_failure_schema_yml("")
+
+safer_replace_failure_invalid_fk_schema_yml = _safer_replace_failure_schema_yml(
+    """    constraints:
+      - type: foreign_key
+        columns: [id]
+        to: ref('safer_failure_parent')
+        to_columns: [id]
+"""
+)
+
+safer_replace_self_reference_sql = """
+select 1 as id, 1 as parent_id
+"""
+
+safer_replace_self_reference_updated_sql = """
+select 2 as id, 2 as parent_id
+"""
+
+
+def _safer_replace_self_reference_schema_yml(foreign_key):
+    return f"""
+version: 2
+models:
+  - name: safer_self_ref
+    config:
+      materialized: table
+      use_safer_relation_operations: true
+      contract:
+        enforced: true
+    constraints:
+      - type: primary_key
+        columns: [id]
+{foreign_key}    columns:
+      - name: id
+        data_type: int
+        constraints:
+          - type: not_null
+      - name: parent_id
+        data_type: int
+"""
+
+
+safer_replace_self_reference_schema_yml = _safer_replace_self_reference_schema_yml("")
+
+safer_replace_self_reference_fk_schema_yml = _safer_replace_self_reference_schema_yml(
+    """      - type: foreign_key
+        columns: [parent_id]
+        to: source('self_ref', 'safer_self_ref')
+        to_columns: [id]
+"""
+)
+
+# A model can't ref() itself, so the self-referencing FK points at a source for its own table.
+safer_replace_self_reference_sources_yml = """
+version: 2
+sources:
+  - name: self_ref
+    database: "{{ target.database }}"
+    schema: "{{ target.schema }}"
+    tables:
+      - name: safer_self_ref
 """

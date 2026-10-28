@@ -1,3 +1,4 @@
+import threading
 from multiprocessing import get_context
 from unittest.mock import Mock, patch
 
@@ -210,3 +211,41 @@ class TestOpenSpogIntegration:
         assert captured["host"] == "spog.example.com"
         assert "/sql/1.0/warehouses/default?o=64" in captured["http_paths"]
         assert "/sql/1.0/warehouses/alt?o=64" in captured["http_paths"]
+
+
+class TestRelease:
+    def test_release_does_not_hold_lock_while_closing(self):
+        connection_manager = DatabricksConnectionManager(Mock(), get_context("spawn"))
+        conn = Mock(spec=DatabricksDBTConnection)
+        connection_manager.set_thread_connection(conn)
+        other_thread_got_lock = []
+
+        def close_while_other_thread_takes_lock(_):
+            def take_lock():
+                acquired = connection_manager.lock.acquire(timeout=5)
+                if acquired:
+                    connection_manager.lock.release()
+                other_thread_got_lock.append(acquired)
+
+            other = threading.Thread(target=take_lock)
+            other.start()
+            other.join()
+
+        with patch.object(
+            DatabricksConnectionManager,
+            "close",
+            side_effect=close_while_other_thread_takes_lock,
+        ) as mock_close:
+            connection_manager.release()
+
+        mock_close.assert_called_once_with(conn)
+        assert other_thread_got_lock == [True]
+        assert connection_manager.get_if_exists() is None
+
+    def test_release_without_connection_is_noop(self):
+        connection_manager = DatabricksConnectionManager(Mock(), get_context("spawn"))
+
+        with patch.object(DatabricksConnectionManager, "close") as mock_close:
+            connection_manager.release()
+
+        mock_close.assert_not_called()

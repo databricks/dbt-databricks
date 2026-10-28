@@ -309,8 +309,10 @@ class DeltaLiveTableMaterializationTagsTestBase(MacroTestBase):
         context["pre_hooks"] = []
         context["run_hooks"] = jinja_safe_mock(return_value="")
         context["execute_multiple_statements"] = jinja_safe_mock(return_value="")
+        context["cache_replaced_relation"] = jinja_safe_mock(return_value="")
         context["should_revoke"] = jinja_safe_mock(return_value=False)
         context["apply_grants"] = jinja_safe_mock(return_value="")
+        context["validate_persist_doc_columns"] = jinja_safe_mock(return_value="")
 
     @staticmethod
     def configure_build_context(context, full_refresh):
@@ -345,7 +347,10 @@ class TestMaterializedViewMaterializationTags(DeltaLiveTableMaterializationTagsT
 
     def test_execution_only_executes_completed_build_sql(self, template_bundle, context):
         self.configure_execution_context(context)
-        existing_relation = Mock(is_materialized_view=True)
+        template_bundle.relation.type = DatabricksRelationType.MaterializedView
+        existing_relation = Mock(
+            is_materialized_view=True, type=DatabricksRelationType.MaterializedView
+        )
 
         self.run_macro_raw(
             template_bundle.template,
@@ -357,6 +362,52 @@ class TestMaterializedViewMaterializationTags(DeltaLiveTableMaterializationTagsT
         )
 
         context["execute_multiple_statements"].assert_called_once_with("REFRESH MATERIALIZED VIEW")
+        context["validate_persist_doc_columns"].assert_called_once()
+        context["cache_replaced_relation"].assert_not_called()
+
+    def test_schema_drift_only_replacement_applies_full_tags(
+        self, template_bundle, context, config
+    ):
+        full_table_tags = {"owner": "analytics"}
+        full_column_tags = ColumnTagsConfig(set_column_tags={"id": {"classification": "internal"}})
+        config["databricks_tags"] = full_table_tags
+        config["on_configuration_change"] = "apply"
+        self.configure_build_context(context, full_refresh=False)
+        context["adapter"].get_column_tags_from_model.return_value = full_column_tags
+        context["get_configuration_changes"] = jinja_safe_mock(return_value=None)
+        context["dlt_inferred_query_schema_changed"] = jinja_safe_mock(return_value=True)
+        context["get_replace_sql"] = jinja_safe_mock(
+            return_value="CREATE OR REPLACE MATERIALIZED VIEW"
+        )
+
+        statements = capture_macro_return(
+            context,
+            template_bundle.template,
+            "dbt_macro__materialized_view_get_build_sql",
+            self.existing_relation("drifted", "is_materialized_view"),
+            template_bundle.relation,
+        )
+
+        context["get_set_tag_statements"].assert_called_once_with(
+            template_bundle.relation, full_table_tags, full_column_tags
+        )
+        assert statements == ["CREATE OR REPLACE MATERIALIZED VIEW", "TABLE TAGS", "COLUMN TAGS"]
+
+    def test_type_change_caches_target_after_execution(self, template_bundle, context):
+        self.configure_execution_context(context)
+        template_bundle.relation.type = DatabricksRelationType.MaterializedView
+        existing_relation = Mock(is_materialized_view=False, type=DatabricksRelationType.View)
+
+        self.run_macro_raw(
+            template_bundle.template,
+            "dbt_macro__materialized_view_execute_build_sql",
+            ["REPLACE"],
+            existing_relation,
+            template_bundle.relation,
+            [],
+        )
+
+        context["cache_replaced_relation"].assert_called_once_with(template_bundle.relation)
 
     @pytest.mark.parametrize("scenario", ["create", "full_refresh", "wrong_type"])
     def test_create_and_outer_replacements_apply_full_tags(
@@ -405,7 +456,10 @@ class TestStreamingTableMaterializationTags(DeltaLiveTableMaterializationTagsTes
 
     def test_execution_only_executes_completed_build_sql(self, template_bundle, context):
         self.configure_execution_context(context)
-        existing_relation = Mock(is_streaming_table=True)
+        template_bundle.relation.type = DatabricksRelationType.StreamingTable
+        existing_relation = Mock(
+            is_streaming_table=True, type=DatabricksRelationType.StreamingTable
+        )
 
         self.run_macro_raw(
             template_bundle.template,
@@ -417,6 +471,26 @@ class TestStreamingTableMaterializationTags(DeltaLiveTableMaterializationTagsTes
         )
 
         context["execute_multiple_statements"].assert_called_once_with("REFRESH STREAMING TABLE")
+        context["validate_persist_doc_columns"].assert_called_once()
+        context["cache_replaced_relation"].assert_not_called()
+
+    def test_type_change_caches_target_after_execution(self, template_bundle, context):
+        self.configure_execution_context(context)
+        template_bundle.relation.type = DatabricksRelationType.StreamingTable
+        existing_relation = Mock(
+            is_streaming_table=False, type=DatabricksRelationType.MaterializedView
+        )
+
+        self.run_macro_raw(
+            template_bundle.template,
+            "dbt_macro__streaming_table_execute_build_sql",
+            ["REPLACE"],
+            existing_relation,
+            template_bundle.relation,
+            [],
+        )
+
+        context["cache_replaced_relation"].assert_called_once_with(template_bundle.relation)
 
     @pytest.mark.parametrize("scenario", ["create", "full_refresh", "wrong_type"])
     def test_create_and_outer_replacements_apply_full_tags(

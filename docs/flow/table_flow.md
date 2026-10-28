@@ -1,6 +1,6 @@
 # Table Flow
 
-_Last updated: 2026-10-02_
+_Last updated: 2026-10-28_
 
 > Two diagrams follow: **V1** is the default path, **V2** is used when the `use_materialization_v2`
 > behavior flag is enabled. See [flow/README.md](README.md) for what the flag is and how the
@@ -28,11 +28,12 @@ flowchart LR
     TAGS --> COLTAGS[Apply column tags]
     COLTAGS --> DOCS[Persist docs]
     DOCS --> CONSTRAINTS[Persist constraints]
-    CONSTRAINTS --> OPT[Run optimize]
+    CONSTRAINTS --> OPT[Run optimize for zorder / liquid_clustered_by]
     OPT --> POST[Run post-hooks]
 ```
 
-V1 calls `run_hooks(pre_hooks)` without the outside/inside split used by seed and snapshot.
+V1 and V2 both call the shared `run_pre_hooks` / `run_post_hooks` helpers; see [hook transaction
+categories](README.md#hook-transaction-categories).
 
 ## V2 Table Flow
 
@@ -46,7 +47,7 @@ flowchart LR
 
     EXIST -- no --> CREATE["create_table_at target:<br/>create schema; constraints; table tags;<br/>column tags; insert intermediate"]
     EXIST -- yes --> SAFEPATH{"use_safer_relation_operations and\nexisting can be renamed?"}
-    SAFEPATH -- yes --> SAFE["safe_relation_replace:<br/>create_table_at staging; back up existing;<br/>rename staging; drop backup; drop intermediate"]
+    SAFEPATH -- yes --> SAFE["safe_relation_replace:<br/>create_table_at staging; back up existing;<br/>rename staging; drop backup;<br/>rename staged PK/FK; drop intermediate"]
     SAFEPATH -- no --> DROPNEEDED{"Shallow clone, non-table, or not a replaceable\nDelta/Iceberg table?"}
     DROPNEEDED -- yes --> DROP[Drop existing relation]
     DROPNEEDED -- no --> UNSET["Unset tags on existing columns<br/>absent from the intermediate relation"]
@@ -55,7 +56,7 @@ flowchart LR
 
     CREATE --> GRANTS[Apply grants]
     SAFE --> GRANTS
-    GRANTS --> OPT[Run optimize]
+    GRANTS --> OPT[Run optimize for zorder / liquid_clustered_by]
     OPT --> PYCLEAN{Python model?}
     PYCLEAN -- yes --> CLEAN[Drop intermediate relation]
     PYCLEAN -- no --> POST[Run post-hooks]
@@ -63,6 +64,14 @@ flowchart LR
 ```
 
 The `create_table_at` helper applies constraints, table tags, and column tags before inserting from
-the intermediate relation. The safe-replacement helper performs its own intermediate cleanup;
+the intermediate relation. Unnamed primary and foreign keys get a deterministic name derived from
+the relation's identifier. Because those names are unique per schema, the safe-replacement helper
+creates every staging primary and foreign key under a staging-derived name, so the server validates
+them before the swap, and renames each to its configured or model-derived name after the old table's
+backup is dropped. It also
+performs its own intermediate cleanup;
 Python paths also clean up the intermediate relation after optimization. Unlike V1, V2 does not call
 `persist_docs` — column and relation comments are handled on the create/insert path.
+
+Safe staging renames tables, which Databricks rejects for Hive metastore managed Delta tables on
+S3 unless `spark.databricks.delta.alterTable.rename.enabledOnAWS` is set on the cluster.
