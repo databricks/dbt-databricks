@@ -31,6 +31,7 @@ from dbt.adapters.databricks.impl import (
     DatabricksRelationInfo,
     IncrementalTableAPI,
     MaterializedViewAPI,
+    MetricViewAPI,
     StreamingTableAPI,
     ViewAPI,
     get_identifier_list_string,
@@ -44,8 +45,13 @@ from dbt.adapters.databricks.relation_configs.column_tags import (
     ColumnTagsConfig,
     ColumnTagsProcessor,
 )
+from dbt.adapters.databricks.relation_configs.constraints import (
+    ConstraintsConfig,
+    ConstraintsProcessor,
+)
 from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
 from dbt.adapters.databricks.relation_configs.materialized_view import MaterializedViewConfig
+from dbt.adapters.databricks.relation_configs.metric_view import MetricViewConfig
 from dbt.adapters.databricks.relation_configs.streaming_table import StreamingTableConfig
 from dbt.adapters.databricks.relation_configs.tags import TagsConfig, TagsProcessor
 from dbt.adapters.databricks.relation_configs.view import ViewConfig
@@ -1526,6 +1532,9 @@ class TestDescribeRelationMetadataFetchPlanning:
     def _create_adapter(describe_as_json_supported: bool = False):
         adapter = Mock()
         adapter.is_describe_as_json_supported.return_value = describe_as_json_supported
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.return_value = (
+            "table_tags_result"
+        )
 
         def execute_macro(macro_name, kwargs=None):
             if macro_name == "get_view_description":
@@ -1563,6 +1572,15 @@ class TestDescribeRelationMetadataFetchPlanning:
         )
 
     @staticmethod
+    def _create_metric_view_relation(database="main"):
+        return DatabricksRelation.create(
+            database=database,
+            schema="analytics",
+            identifier="my_metric_view_model",
+            type=DatabricksRelationType.MetricView,
+        )
+
+    @staticmethod
     def _create_st_relation(database="main"):
         return DatabricksRelation.create(
             database=database,
@@ -1575,11 +1593,17 @@ class TestDescribeRelationMetadataFetchPlanning:
     def _create_incremental_config(
         tags: dict[str, str] | None = None,
         column_tags: dict[str, dict[str, str]] | None = None,
+        contract_enforced: bool = True,
     ) -> IncrementalTableConfig:
         return IncrementalTableConfig(
             config={
                 TagsProcessor.name: TagsConfig(set_tags=tags or {}),
                 ColumnTagsProcessor.name: ColumnTagsConfig(set_column_tags=column_tags or {}),
+                ConstraintsProcessor.name: ConstraintsConfig(
+                    set_non_nulls=set(),
+                    set_constraints=set(),
+                    contract_enforced=contract_enforced,
+                ),
             }
         )
 
@@ -1620,6 +1644,10 @@ class TestDescribeRelationMetadataFetchPlanning:
         )
 
     @staticmethod
+    def _create_metric_view_config(tags: dict[str, str] | None = None) -> MetricViewConfig:
+        return MetricViewConfig(config={TagsProcessor.name: TagsConfig(set_tags=tags or {})})
+
+    @staticmethod
     def _called_macro_names(adapter: Mock) -> list[str]:
         return [call.args[0] for call in adapter.execute_macro.call_args_list]
 
@@ -1630,13 +1658,14 @@ class TestDescribeRelationMetadataFetchPlanning:
 
         results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
 
-        assert results["information_schema.tags"] is None
+        assert results["table_tags"] is None
         assert results["information_schema.column_tags"] is None
         called_macro_names = self._called_macro_names(adapter)
         assert "fetch_tags" not in called_macro_names
         assert "fetch_column_tags" not in called_macro_names
         assert "fetch_tbl_properties" in called_macro_names
         assert DESCRIBE_TABLE_EXTENDED_MACRO_NAME in called_macro_names
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_not_called()
 
     def test_incremental_describe_relation_fetches_only_table_tags_when_present(self):
         adapter = self._create_adapter()
@@ -1645,11 +1674,14 @@ class TestDescribeRelationMetadataFetchPlanning:
 
         results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
 
-        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["table_tags"] == "table_tags_result"
         assert results["information_schema.column_tags"] is None
         called_macro_names = self._called_macro_names(adapter)
-        assert "fetch_tags" in called_macro_names
+        assert "fetch_tags" not in called_macro_names
         assert "fetch_column_tags" not in called_macro_names
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_called_once_with(
+            "main.analytics.my_incremental_model"
+        )
 
     def test_incremental_describe_relation_fetches_table_tags_from_project_level_cascade(self):
         # Project-level databricks_tags cascade onto a model that doesn't declare
@@ -1668,10 +1700,10 @@ class TestDescribeRelationMetadataFetchPlanning:
 
         results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
 
-        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["table_tags"] == "table_tags_result"
         assert results["information_schema.column_tags"] is None
         called_macro_names = self._called_macro_names(adapter)
-        assert "fetch_tags" in called_macro_names
+        assert "fetch_tags" not in called_macro_names
         assert "fetch_column_tags" not in called_macro_names
 
     def test_incremental_describe_relation_fetches_only_column_tags_when_present(self):
@@ -1683,11 +1715,12 @@ class TestDescribeRelationMetadataFetchPlanning:
 
         results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
 
-        assert results["information_schema.tags"] is None
+        assert results["table_tags"] is None
         assert results["information_schema.column_tags"] == "fetch_column_tags_result"
         called_macro_names = self._called_macro_names(adapter)
         assert "fetch_tags" not in called_macro_names
         assert "fetch_column_tags" in called_macro_names
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_not_called()
 
     def test_incremental_describe_relation_fetches_both_tag_queries_when_both_present(self):
         adapter = self._create_adapter()
@@ -1699,10 +1732,10 @@ class TestDescribeRelationMetadataFetchPlanning:
 
         results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
 
-        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["table_tags"] == "table_tags_result"
         assert results["information_schema.column_tags"] == "fetch_column_tags_result"
         called_macro_names = self._called_macro_names(adapter)
-        assert "fetch_tags" in called_macro_names
+        assert "fetch_tags" not in called_macro_names
         assert "fetch_column_tags" in called_macro_names
 
     def test_incremental_describe_relation_fetches_tag_queries_when_relation_config_is_none(self):
@@ -1711,11 +1744,48 @@ class TestDescribeRelationMetadataFetchPlanning:
 
         results = IncrementalTableAPI._describe_relation(adapter, relation, None)
 
-        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["table_tags"] == "table_tags_result"
         assert results["information_schema.column_tags"] == "fetch_column_tags_result"
         called_macro_names = self._called_macro_names(adapter)
-        assert "fetch_tags" in called_macro_names
+        assert "fetch_tags" not in called_macro_names
         assert "fetch_column_tags" in called_macro_names
+        assert "fetch_non_null_constraint_columns" in called_macro_names
+        assert "fetch_primary_key_constraints" in called_macro_names
+        assert "fetch_foreign_key_constraints" in called_macro_names
+
+    def test_incremental_describe_relation_skips_constraint_queries_without_enforced_contract(
+        self,
+    ):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+        relation_config = self._create_incremental_config(contract_enforced=False)
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["non_null_constraint_columns"] is None
+        assert results["primary_key_constraints"] is None
+        assert results["foreign_key_constraints"] is None
+        assert results["column_masks"] == "fetch_column_masks_result"
+        assert results["row_filters"] == "fetch_row_filters_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_non_null_constraint_columns" not in called_macro_names
+        assert "fetch_primary_key_constraints" not in called_macro_names
+        assert "fetch_foreign_key_constraints" not in called_macro_names
+
+    def test_incremental_describe_relation_fetches_constraint_queries_with_enforced_contract(self):
+        adapter = self._create_adapter()
+        relation = self._create_incremental_relation()
+        relation_config = self._create_incremental_config(contract_enforced=True)
+
+        results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["non_null_constraint_columns"] == "fetch_non_null_constraint_columns_result"
+        assert results["primary_key_constraints"] == "fetch_primary_key_constraints_result"
+        assert results["foreign_key_constraints"] == "fetch_foreign_key_constraints_result"
+        called_macro_names = self._called_macro_names(adapter)
+        assert "fetch_non_null_constraint_columns" in called_macro_names
+        assert "fetch_primary_key_constraints" in called_macro_names
+        assert "fetch_foreign_key_constraints" in called_macro_names
 
     def test_incremental_describe_relation_skips_tag_queries_for_hive_metastore(self):
         adapter = self._create_adapter()
@@ -1727,13 +1797,14 @@ class TestDescribeRelationMetadataFetchPlanning:
 
         results = IncrementalTableAPI._describe_relation(adapter, relation, relation_config)
 
-        assert "information_schema.tags" not in results
+        assert "table_tags" not in results
         assert "information_schema.column_tags" not in results
         called_macro_names = self._called_macro_names(adapter)
         assert "fetch_tags" not in called_macro_names
         assert "fetch_column_tags" not in called_macro_names
         assert "fetch_tbl_properties" in called_macro_names
         assert DESCRIBE_TABLE_EXTENDED_MACRO_NAME in called_macro_names
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_not_called()
 
     def test_view_describe_relation_skips_tag_query_without_tags(self):
         adapter = self._create_adapter()
@@ -1742,11 +1813,12 @@ class TestDescribeRelationMetadataFetchPlanning:
 
         results = ViewAPI._describe_relation(adapter, relation, relation_config)
 
-        assert results["information_schema.tags"] is None
+        assert results["table_tags"] is None
         called_macro_names = self._called_macro_names(adapter)
         assert "fetch_tags" not in called_macro_names
         assert "get_view_description" in called_macro_names
         assert "fetch_tbl_properties" in called_macro_names
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_not_called()
 
     def test_view_describe_relation_fetches_tag_query_when_tags_present(self):
         adapter = self._create_adapter()
@@ -1755,10 +1827,101 @@ class TestDescribeRelationMetadataFetchPlanning:
 
         results = ViewAPI._describe_relation(adapter, relation, relation_config)
 
-        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["table_tags"] == "table_tags_result"
         called_macro_names = self._called_macro_names(adapter)
-        assert "fetch_tags" in called_macro_names
+        assert "fetch_tags" not in called_macro_names
         assert "get_view_description" in called_macro_names
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_called_once_with(
+            "main.analytics.my_view_model"
+        )
+
+    def test_view_describe_relation_raises_for_hive_metastore_table_tags(self):
+        adapter = self._create_adapter()
+        relation = self._create_view_relation(database="hive_metastore")
+        relation_config = self._create_view_config(tags={"classification": "internal"})
+
+        with pytest.raises(DbtRuntimeError, match="Tags are only supported for Unity Catalog"):
+            ViewAPI._describe_relation(adapter, relation, relation_config)
+
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_not_called()
+
+    def test_mv_describe_relation_raises_for_hive_metastore_table_tags(self):
+        adapter = self._create_adapter()
+        relation = self._create_mv_relation(database="hive_metastore")
+        relation_config = self._create_mv_config(tags={"classification": "internal"})
+
+        with pytest.raises(DbtRuntimeError, match="Tags are only supported for Unity Catalog"):
+            MaterializedViewAPI._describe_relation(adapter, relation, relation_config)
+
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_not_called()
+
+    def test_metric_view_describe_relation_raises_for_hive_metastore_table_tags(self):
+        adapter = self._create_adapter()
+        relation = self._create_metric_view_relation(database="hive_metastore")
+        relation_config = self._create_metric_view_config(tags={"classification": "internal"})
+
+        with pytest.raises(DbtRuntimeError, match="Tags are only supported for Unity Catalog"):
+            MetricViewAPI._describe_relation(adapter, relation, relation_config)
+
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_not_called()
+
+    def test_get_table_tags_raises_for_hive_metastore(self):
+        adapter = self._create_adapter()
+        relation = self._create_view_relation(database="hive_metastore")
+
+        with pytest.raises(DbtRuntimeError, match="Tags are only supported for Unity Catalog"):
+            ViewAPI._get_table_tags(adapter, relation)
+
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_not_called()
+
+    def test_get_table_tags_treats_missing_database_as_hive_metastore(self):
+        adapter = self._create_adapter()
+        relation = DatabricksRelation.create(
+            schema="analytics",
+            identifier="my_view_model",
+            type=DatabricksRelationType.View,
+        )
+
+        with pytest.raises(DbtRuntimeError, match="Tags are only supported for Unity Catalog"):
+            ViewAPI._get_table_tags(adapter, relation)
+
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_not_called()
+
+    def test_get_table_tags_raises_without_fully_qualified_relation(self):
+        adapter = self._create_adapter()
+        relation = DatabricksRelation.create(
+            database="main",
+            schema="analytics",
+            type=DatabricksRelationType.View,
+        )
+
+        with pytest.raises(DbtRuntimeError, match="fully qualified relation name"):
+            ViewAPI._get_table_tags(adapter, relation)
+
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_not_called()
+
+    def test_get_table_tags_falls_back_to_information_schema_when_api_unavailable(self):
+        adapter = self._create_adapter()
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.return_value = None
+        relation = self._create_view_relation()
+        adapter.execute_macro.side_effect = None
+        adapter.execute_macro.return_value = agate.Table(
+            [["classification", "internal"], ["key_only", None]],
+            ["tag_name", "tag_value"],
+            [agate.Text(), agate.Text()],
+        )
+
+        tags = ViewAPI._get_table_tags(adapter, relation)
+
+        assert tags == {"classification": "internal", "key_only": ""}
+        adapter.execute_macro.assert_called_once_with("fetch_tags", kwargs={"relation": relation})
+
+    def test_get_table_tags_skips_information_schema_when_api_returns_tags(self):
+        adapter = self._create_adapter()
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.return_value = {}
+
+        assert ViewAPI._get_table_tags(adapter, self._create_view_relation()) == {}
+        assert "fetch_tags" not in self._called_macro_names(adapter)
 
     def test_view_describe_relation_skips_column_tag_query_without_tags(self):
         adapter = self._create_adapter()
@@ -1801,13 +1964,14 @@ class TestDescribeRelationMetadataFetchPlanning:
 
         results = MaterializedViewAPI._describe_relation(adapter, relation, relation_config)
 
-        assert results["information_schema.tags"] is None
+        assert results["table_tags"] is None
         assert results["information_schema.column_tags"] is None
         called_macro_names = self._called_macro_names(adapter)
         assert "fetch_tags" not in called_macro_names
         assert "fetch_column_tags" not in called_macro_names
         assert "get_view_description" in called_macro_names
         assert "fetch_tbl_properties" in called_macro_names
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_not_called()
 
     def test_mv_describe_relation_fetches_tag_query_when_tags_present(self):
         adapter = self._create_adapter()
@@ -1816,12 +1980,38 @@ class TestDescribeRelationMetadataFetchPlanning:
 
         results = MaterializedViewAPI._describe_relation(adapter, relation, relation_config)
 
-        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["table_tags"] == "table_tags_result"
         assert results["information_schema.column_tags"] is None
         called_macro_names = self._called_macro_names(adapter)
-        assert "fetch_tags" in called_macro_names
+        assert "fetch_tags" not in called_macro_names
         assert "fetch_column_tags" not in called_macro_names
         assert "get_view_description" in called_macro_names
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_called_once_with(
+            "main.analytics.my_mv_model"
+        )
+
+    def test_metric_view_describe_relation_fetches_table_tags_from_api(self):
+        adapter = self._create_adapter()
+        relation = self._create_metric_view_relation()
+        relation_config = self._create_metric_view_config(tags={"classification": "internal"})
+
+        results = MetricViewAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["table_tags"] == "table_tags_result"
+        assert "fetch_tags" not in self._called_macro_names(adapter)
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_called_once_with(
+            "main.analytics.my_metric_view_model"
+        )
+
+    def test_metric_view_describe_relation_skips_table_tag_api_without_tags(self):
+        adapter = self._create_adapter()
+        relation = self._create_metric_view_relation()
+        relation_config = self._create_metric_view_config()
+
+        results = MetricViewAPI._describe_relation(adapter, relation, relation_config)
+
+        assert results["table_tags"] is None
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_not_called()
 
     def test_mv_describe_relation_fetches_only_column_tags_when_present(self):
         adapter = self._create_adapter()
@@ -1830,7 +2020,7 @@ class TestDescribeRelationMetadataFetchPlanning:
 
         results = MaterializedViewAPI._describe_relation(adapter, relation, relation_config)
 
-        assert results["information_schema.tags"] is None
+        assert results["table_tags"] is None
         assert results["information_schema.column_tags"] == "fetch_column_tags_result"
         called_macro_names = self._called_macro_names(adapter)
         assert "fetch_tags" not in called_macro_names
@@ -1846,7 +2036,7 @@ class TestDescribeRelationMetadataFetchPlanning:
 
         results = MaterializedViewAPI._describe_relation(adapter, relation, relation_config)
 
-        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["table_tags"] == "table_tags_result"
         assert results["information_schema.column_tags"] == "fetch_column_tags_result"
 
     def test_mv_describe_relation_fetches_tag_queries_when_relation_config_is_none(self):
@@ -1855,7 +2045,7 @@ class TestDescribeRelationMetadataFetchPlanning:
 
         results = MaterializedViewAPI._describe_relation(adapter, relation, None)
 
-        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["table_tags"] == "table_tags_result"
         assert results["information_schema.column_tags"] == "fetch_column_tags_result"
 
     def test_st_describe_relation_skips_tag_query_without_tags(self):
@@ -1865,7 +2055,7 @@ class TestDescribeRelationMetadataFetchPlanning:
 
         results = StreamingTableAPI._describe_relation(adapter, relation, relation_config)
 
-        assert results["information_schema.tags"] is None
+        assert results["table_tags"] is None
         assert results["information_schema.column_tags"] is None
         called_macro_names = self._called_macro_names(adapter)
         assert "fetch_tags" not in called_macro_names
@@ -1880,11 +2070,30 @@ class TestDescribeRelationMetadataFetchPlanning:
 
         results = StreamingTableAPI._describe_relation(adapter, relation, relation_config)
 
-        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["table_tags"] == "table_tags_result"
         assert results["information_schema.column_tags"] is None
         called_macro_names = self._called_macro_names(adapter)
-        assert "fetch_tags" in called_macro_names
+        assert "fetch_tags" not in called_macro_names
         assert "fetch_column_tags" not in called_macro_names
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.assert_called_once_with(
+            "main.analytics.my_st_model"
+        )
+
+    def test_st_describe_relation_preserves_tags_through_processor(self):
+        adapter = self._create_adapter()
+        relation = self._create_st_relation()
+        relation_config = self._create_st_config(tags={"classification": "internal"})
+        adapter.connections.api_client.entity_tag_assignments.list_table_tags.return_value = {
+            "classification": "internal",
+            "key_only": None,
+        }
+
+        results = StreamingTableAPI._describe_relation(adapter, relation, relation_config)
+
+        assert TagsProcessor.from_relation_results(results) == TagsConfig(
+            set_tags={"classification": "internal", "key_only": ""}
+        )
+        assert "fetch_tags" not in self._called_macro_names(adapter)
 
     def test_st_describe_relation_fetches_only_column_tags_when_present(self):
         adapter = self._create_adapter()
@@ -1893,7 +2102,7 @@ class TestDescribeRelationMetadataFetchPlanning:
 
         results = StreamingTableAPI._describe_relation(adapter, relation, relation_config)
 
-        assert results["information_schema.tags"] is None
+        assert results["table_tags"] is None
         assert results["information_schema.column_tags"] == "fetch_column_tags_result"
         called_macro_names = self._called_macro_names(adapter)
         assert "fetch_tags" not in called_macro_names
@@ -1909,7 +2118,7 @@ class TestDescribeRelationMetadataFetchPlanning:
 
         results = StreamingTableAPI._describe_relation(adapter, relation, relation_config)
 
-        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["table_tags"] == "table_tags_result"
         assert results["information_schema.column_tags"] == "fetch_column_tags_result"
 
     def test_st_describe_relation_fetches_tags_when_relation_config_is_none(self):
@@ -1918,10 +2127,10 @@ class TestDescribeRelationMetadataFetchPlanning:
 
         results = StreamingTableAPI._describe_relation(adapter, relation, None)
 
-        assert results["information_schema.tags"] == "fetch_tags_result"
+        assert results["table_tags"] == "table_tags_result"
         assert results["information_schema.column_tags"] == "fetch_column_tags_result"
         called_macro_names = self._called_macro_names(adapter)
-        assert "fetch_tags" in called_macro_names
+        assert "fetch_tags" not in called_macro_names
         assert "fetch_column_tags" in called_macro_names
 
 
