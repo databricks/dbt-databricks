@@ -6,9 +6,13 @@
 - Add opt-in POST_PARSE invocation telemetry for eligible commands via `connection_parameters.enable_dbt_telemetry`, sent only when the workspace's server-side telemetry flag is on; `connection_parameters.force_enable_dbt_telemetry` sends regardless of the server flag ([#1647](https://github.com/databricks/dbt-databricks/pull/1647), [#1682](https://github.com/databricks/dbt-databricks/pull/1682))
 - Add POST_RUN outcome telemetry to the opt-in invocation telemetry path ([#1648](https://github.com/databricks/dbt-databricks/pull/1648))
 - Add aggregate model configuration statistics to the opt-in POST_PARSE telemetry event ([#1665](https://github.com/databricks/dbt-databricks/pull/1665))
+- **BREAKING for some view models:** Views run one materialization whatever the `use_materialization_v2` value, so with the flag off `view_update_via_alter` now updates Unity Catalog views in place and fails on Hive metastore views, grants are applied after tags, and replacing an existing view now calls `get_create_view_as_sql` overrides ([#1737](https://github.com/databricks/dbt-databricks/pull/1737))
 
 ### Fixes
 
+- Stop failing with `UNRESOLVED_COLUMN` when `view_update_via_alter` changes a view query that drops a column whose description also changed, and keep persisted column comments after the query change for views inheriting a non-Delta `file_format` ([#1736](https://github.com/databricks/dbt-databricks/pull/1736))
+- Enforce model contracts and reject column masks and row filters when `view_update_via_alter` updates a view in place or finds no changes, matching `CREATE`; views that violate their enforced contract or set a column mask or row filter now fail on these runs instead of passing silently ([#1736](https://github.com/databricks/dbt-databricks/pull/1736))
+- Replace a view with `CREATE OR REPLACE VIEW` when `use_safer_relation_operations` is on, including views inheriting `file_format: parquet`, so a view whose upstream dropped or renamed a column it used no longer fails with `UNRESOLVED_COLUMN` (thanks @shantanutheone!) ([#1733](https://github.com/databricks/dbt-databricks/pull/1733) resolves [#1714](https://github.com/databricks/dbt-databricks/issues/1714))
 - Skip `transaction: false` hooks with a warning by default, or run them without `COMMIT` when `use_non_transactional_hooks` is enabled; the inherited function/UDF materialization remains unchanged ([#1693](https://github.com/databricks/dbt-databricks/pull/1693) resolves [#1549](https://github.com/databricks/dbt-databricks/issues/1549))
 - Reapply view queries containing `*` when `view_update_via_alter` is enabled so upstream column additions appear, while retaining no-op runs for unchanged explicit projections ([#1720](https://github.com/databricks/dbt-databricks/pull/1720) resolves [#1356](https://github.com/databricks/dbt-databricks/issues/1356))
 - Let Predictive Optimization manage models with `auto_liquid_cluster` instead of running synchronous `OPTIMIZE` after materialization ([#1658](https://github.com/databricks/dbt-databricks/pull/1658) resolves [#1655](https://github.com/databricks/dbt-databricks/issues/1655))
@@ -21,9 +25,16 @@
 ### Under the Hood
 
 - Reset the snapshot constraint test before retries so transient failures do not cause duplicate-constraint errors (test-only, no runtime impact) ([#1735](https://github.com/databricks/dbt-databricks/pull/1735))
+- Raise the `dbt-core` upper bound to `<1.12.7` to include dbt-core 1.12.6 ([#1739](https://github.com/databricks/dbt-databricks/pull/1739))
 - Raise the `databricks-sql-connector` floor to `>=4.2.2`, the first release that caches server feature flags per host, so the telemetry server check runs once per host instead of once per connection ([#1682](https://github.com/databricks/dbt-databricks/pull/1682))
 - Remove unused internal logging-event classes (`CredentialLoadError`/`CredentialSaveError`/`CredentialShardEvent`, `PipelineEvent`/`PipelineRefresh`/`PipelineRefreshError`, and the `ConnectionReset`/`ConnectionReuse`/`ConnectionIdleClose`/`ConnectionCreated` connection events) that have had no call sites since the cursor-management and pipeline refactors ([#1547](https://github.com/databricks/dbt-databricks/pull/1547))
 - Fetch table tags through the Unity Catalog Entity Tag Assignments API instead of `information_schema`, reducing metadata-query rate-limit pressure, and fall back to `information_schema` when the token cannot call the API (for example, a personal access token scoped to `sql`) ([#1603](https://github.com/databricks/dbt-databricks/pull/1603))
+
+## dbt-databricks 1.12.8 (Oct 24, 2026)
+
+### Fixes
+
+- Require `certifi>=2026.10.23` to pick up a security fix in its CA certificate bundle ([#1740](https://github.com/databricks/dbt-databricks/pull/1740))
 
 ## dbt-databricks 1.12.7 (Oct 12, 2026)
 

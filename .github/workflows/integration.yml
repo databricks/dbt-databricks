@@ -75,7 +75,6 @@ jobs:
           INPUT_PR_NUMBERS: ${{ github.event.inputs.pr_numbers }}
           INPUT_GIT_REF: ${{ github.event.inputs.git_ref }}
           INPUT_COMMIT_SHA: ${{ github.event.inputs.commit_sha }}
-          DEFAULT_REF: ${{ github.ref }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
@@ -92,7 +91,7 @@ jobs:
             if [[ "$already_tested" -gt 0 ]]; then
               echo "Nightly skip: main @ $GITHUB_SHA already has $already_tested successful run(s)."
             else
-              targets+=$(entry "nightly" "$DEFAULT_REF")
+              targets+=$(entry "nightly" "$GITHUB_SHA")
             fi
           elif [[ -n "${INPUT_COMMIT_SHA//[[:space:]]/}" ]]; then
             pr_trimmed="${INPUT_PR_NUMBERS//[[:space:]]/}"
@@ -122,7 +121,7 @@ jobs:
           elif [[ -n "${INPUT_GIT_REF//[[:space:]]/}" ]]; then
             targets+=$(entry "manual" "$INPUT_GIT_REF")
           else
-            targets+=$(entry "manual" "$DEFAULT_REF")
+            targets+=$(entry "manual" "$GITHUB_SHA")
           fi
           targets+="]"
           echo "targets=$targets" >> "$GITHUB_OUTPUT"
