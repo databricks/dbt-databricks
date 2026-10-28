@@ -33,26 +33,6 @@ class ConnectionWrapperEvent(ABC):
         return f"{self.description} - {self.message}"
 
 
-class ConnectionReset(ConnectionWrapperEvent):
-    def __init__(self, description: str):
-        super().__init__(description, "Reset connection handle")
-
-
-class ConnectionReuse(ConnectionWrapperEvent):
-    def __init__(self, description: str, prior_name: str):
-        super().__init__(description, f"Reusing connection previously named {prior_name}")
-
-
 class ConnectionCreate(ConnectionWrapperEvent):
     def __init__(self, description: str):
         super().__init__(description, "Creating connection")
-
-
-class ConnectionIdleClose(ConnectionWrapperEvent):
-    def __init__(self, description: str):
-        super().__init__(description, "Recreating due to idleness")
-
-
-class ConnectionCreated(ConnectionWrapperEvent):
-    def __init__(self, description: str):
-        super().__init__(description, "Connection created")

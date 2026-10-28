@@ -1,6 +1,6 @@
 # Replace Flow
 
-_Last updated: 2026-10-08_
+_Last updated: 2026-10-28_
 
 Shared decision tree used when view, materialized-view, streaming-table, or metric-view helpers must
 replace an existing relation. Table and incremental V2 use their dedicated
@@ -10,7 +10,8 @@ replace an existing relation. Table and incremental V2 use their dedicated
 `get_replace_sql` does not support a table target: that input raises a not-implemented compiler
 error before any replacement decision. Direct `CREATE OR REPLACE` for a metric-view target is used
 only when the existing relation is also a metric view; otherwise the incompatible-type fallback
-tree runs (table/view → `backup_and_create_in_place`, since metric views cannot be renamed).
+tree runs: an existing Hive metastore table uses `drop_and_create`; other tables and views use
+`backup_and_create_in_place`, since metric views cannot be renamed.
 
 ```mermaid
 flowchart TD
@@ -18,30 +19,33 @@ flowchart TD
     TABLE -- yes --> ERROR[Raise not-implemented compiler error]
     TABLE -- no --> METRIC{Target and existing are both metric views?}
     METRIC -- yes --> METRICSQL[get_replace_metric_view_sql]
-    METRIC -- no --> SAFE{use_safer_relation_operations?}
+    METRIC -- no --> VIEW{"Existing and target are ordinary views?"}
+    VIEW -- yes --> VIEWSQL[get_replace_view_sql]
+    VIEW -- no --> SAFE{use_safer_relation_operations?}
 
     SAFE -- false --> DIRECT{"Same relation type, existing can be replaced,\nand configured file format is Delta?"}
     DIRECT -- yes --> TYPE{Existing relation type?}
-    TYPE -- view --> VIEWSQL[get_replace_view_sql]
     TYPE -- "materialized view" --> MVSQL[get_replace_materialized_view_sql]
     DIRECT -- no --> TARGETRENAME{Target can be renamed?}
     TYPE -- other --> TARGETRENAME
     SAFE -- true --> TARGETRENAME
 
-    TARGETRENAME -- yes --> EXISTRENAME1{Existing can be renamed?}
-    TARGETRENAME -- no --> EXISTRENAME2{Existing can be renamed?}
+    TARGETRENAME -- yes --> EXISTRENAME1{"Existing can be renamed\nand is not a Hive metastore table?"}
+    TARGETRENAME -- no --> EXISTRENAME2{"Existing can be renamed\nand is not a Hive metastore table?"}
     EXISTRENAME1 -- yes --> SAFELY["safely_replace:<br/>create staging; back up existing;<br/>rename staging to target; drop backup"]
     EXISTRENAME1 -- no --> STAGE["stage_then_replace:<br/>create staging; drop existing;<br/>rename staging to target"]
     EXISTRENAME2 -- yes --> BACKUP["backup_and_create_in_place:<br/>back up existing; create target;<br/>drop backup"]
     EXISTRENAME2 -- no --> DROP["drop_and_create:<br/>drop existing; create target"]
 ```
 
-Direct replacement is available only when safe operations are disabled and the existing and target
-relations have the same type, the existing relation is replaceable, and the configured file format
-is Delta. In practice, the supported direct branches here are views and materialized views; table
-targets have already failed at the initial guard.
+View-to-view replacement uses `CREATE OR REPLACE VIEW` through `get_create_view_as_sql`,
+regardless of file format or safer operations.
 
-| Target can be renamed? | Existing can be renamed? | Fallback strategy |
+Tables and views can be renamed, except that an existing Hive metastore table is never renamed:
+Databricks rejects `ALTER TABLE ... RENAME TO` for managed Delta tables on S3. A view replacing a
+Hive metastore table therefore uses `stage_then_replace`, which renames only the new staging view.
+
+| Target can be renamed? | Existing can be renamed and is not a Hive metastore table? | Fallback strategy |
 | --- | --- | --- |
 | Yes | Yes | `safely_replace` |
 | Yes | No | `stage_then_replace` |

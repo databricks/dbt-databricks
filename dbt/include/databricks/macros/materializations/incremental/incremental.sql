@@ -86,6 +86,9 @@
       {%- endif -%}
     {%- endif -%}
 
+    {#-- Validate every create, replace, and merge path. --#}
+    {% do validate_persist_doc_columns(target_relation, model) %}
+
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode) %}
     {% do apply_grants(target_relation, grant_config, should_revoke) %}
     {% do optimize(target_relation) %}
@@ -104,7 +107,7 @@
     {%- set unique_key = config.get('unique_key') -%}
 
     {#-- Run pre-hooks --#}
-    {{ run_hooks(pre_hooks) }}
+    {{ run_pre_hooks() }}
     {#-- Incremental run logic --#}
     {%- if existing_relation is none -%}
       {#-- Relation must be created --#}
@@ -228,7 +231,7 @@
     {% do apply_grants(target_relation, grant_config, should_revoke) %}
     {% do optimize(target_relation) %}
 
-    {{ run_hooks(post_hooks) }}
+    {{ run_post_hooks() }}
   {%- endif -%}
 
   {%- if incremental_strategy == 'insert_overwrite' and not full_refresh -%}

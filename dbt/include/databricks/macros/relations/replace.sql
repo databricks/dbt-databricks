@@ -35,23 +35,29 @@
   {% set file_format = adapter.resolve_file_format(config) %}
   {% set is_replaceable = existing_relation.type == target_relation.type and existing_relation.can_be_replaced and file_format == "delta" %}
 
+  {#- View-to-view replacement uses CREATE OR REPLACE, regardless of safer mode. -#}
+  {% if existing_relation.is_view and target_relation.is_view %}
+    {{ return(get_replace_view_sql(target_relation, sql)) }}
+  {% endif %}
+
   {% if not safe_replace %}
     {# Prioritize 'create or replace' for speed #}
-    {% if is_replaceable and existing_relation.is_view %}
-      {{ return(get_replace_view_sql(target_relation, sql)) }}
-    {% elif is_replaceable and existing_relation.is_table %}
+    {% if is_replaceable and existing_relation.is_table %}
       {{ return(get_replace_table_sql(target_relation, sql)) }}
     {% elif is_replaceable and existing_relation.is_materialized_view %}
       {{ return(get_replace_materialized_view_sql(target_relation, sql)) }}
     {% endif %}
   {% endif %}
 
+  {#- Hive Metastore rejects ALTER TABLE RENAME for managed Delta tables on S3, so never rename an existing HMS table. -#}
+  {% set existing_can_be_renamed = existing_relation.can_be_renamed and not (existing_relation.is_table and existing_relation.is_hive_metastore()) %}
+
   {# If safe_replace, then we know that anything that would have been caught above is instead caught here #}
-  {% if target_relation.can_be_renamed and existing_relation.can_be_renamed %}
+  {% if target_relation.can_be_renamed and existing_can_be_renamed %}
     {{ return(safely_replace(existing_relation, target_relation, sql)) }}
   {% elif target_relation.can_be_renamed %}
     {{ return(stage_then_replace(existing_relation, target_relation, sql)) }}
-  {% elif existing_relation.can_be_renamed %}
+  {% elif existing_can_be_renamed %}
     {{ return(backup_and_create_in_place(existing_relation, target_relation, sql)) }}
   {% else %}
     {{ return(drop_and_create(existing_relation, target_relation, sql)) }}
@@ -81,6 +87,7 @@
   {% call statement(name="main") %}
     {{ get_create_sql(staging_relation, sql) }}
   {% endcall %}
+  {% do adapter.cache_dropped(existing_relation) %}
 
   {{ return([
     get_drop_sql(existing_relation),
