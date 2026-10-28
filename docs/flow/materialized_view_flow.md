@@ -1,6 +1,6 @@
 # Materialized View Flow
 
-_Last updated: 2026-09-22_
+_Last updated: 2026-10-01_
 
 > Materialized views do **not** use the `use_materialization_v2` flag — there is a single path.
 > Source: `dbt/include/databricks/macros/materializations/materialized_view.sql`.
@@ -19,9 +19,11 @@ flowchart TD
 
     DECIDE -- "no existing relation" --> CREATE[get_create_materialized_view_as_sql]
     DECIDE -- "full refresh OR\nexisting is not a\nmaterialized view" --> REPLACE[get_replace_sql\n（see replace flow）]
-    DECIDE -- "otherwise" --> CFG{Configuration\nchanges?}
+    DECIDE -- "otherwise" --> DRIFT["Detect query schema drift<br/>(drift forces full refresh on any changes)"]
+    DRIFT --> CFG{Configuration\nchanges or drift?}
 
-    CFG -- "none" --> AUTO{refresh.auto_refreshed?}
+    CFG -- "neither" --> AUTO{refresh.auto_refreshed?}
+    CFG -- "drift only +\non_configuration_change=apply" --> DRIFTREPLACE[get_replace_sql]
     AUTO -- yes --> NOOPSQL[build_sql = ''\n（skip manual REFRESH）]
     AUTO -- no --> REFRESH[refresh_materialized_view]
 
@@ -32,6 +34,7 @@ flowchart TD
 
     CREATE --> TAGS[Append full table and column tag statements]
     REPLACE --> TAGS
+    DRIFTREPLACE --> TAGS
     TAGS --> CHECK
     REFRESH --> CHECK
     ALTER --> CHECK
@@ -41,7 +44,8 @@ flowchart TD
     CHECK -- yes --> NOOP[execute_no_op\n（no server change）]
     CHECK -- no --> INTX["Run pre-hooks (inside transaction)"]
     INTX --> EXEC["execute_multiple_statements(build_sql)"]
-    EXEC --> GRANTS[Apply grants]
+    EXEC --> DOCS["validate_persist_doc_columns<br/>(warn on documented columns missing from the relation)"]
+    DOCS --> GRANTS[Apply grants]
     GRANTS --> POSTIN["Run post-hooks (inside transaction)"]
     NOOP --> POSTOUT
     POSTIN --> POSTOUT["Run post-hooks (outside transaction)"]
@@ -57,6 +61,10 @@ Notes:
 - An in-place alter ends with `refresh_materialized_view` unless the desired schedule is
   auto-refreshed (`every` / `on_update`), so a configuration change never skips the run's data
   refresh. Unlike the streaming table in-place path, auto-refreshed MVs are not refreshed.
-- Every create or replacement path appends the complete desired table and column tag state through
+- Query schema drift (`dlt_inferred_query_schema_changed`) counts as a configuration change that
+  REFRESH cannot reconcile. Under `apply`, drift alone replaces the MV, and drift with component
+  changes makes the alter a full replacement. `continue` and `fail` behave as for any change.
+- Every create or replacement path, including the drift-only replacement, appends the complete
+  desired table and column tag state through
   `get_set_tag_statements` while building the statement list. The execution macro only executes
   that completed list.

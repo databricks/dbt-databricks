@@ -312,6 +312,7 @@ class DeltaLiveTableMaterializationTagsTestBase(MacroTestBase):
         context["cache_replaced_relation"] = jinja_safe_mock(return_value="")
         context["should_revoke"] = jinja_safe_mock(return_value=False)
         context["apply_grants"] = jinja_safe_mock(return_value="")
+        context["validate_persist_doc_columns"] = jinja_safe_mock(return_value="")
 
     @staticmethod
     def configure_build_context(context, full_refresh):
@@ -361,7 +362,36 @@ class TestMaterializedViewMaterializationTags(DeltaLiveTableMaterializationTagsT
         )
 
         context["execute_multiple_statements"].assert_called_once_with("REFRESH MATERIALIZED VIEW")
+        context["validate_persist_doc_columns"].assert_called_once()
         context["cache_replaced_relation"].assert_not_called()
+
+    def test_schema_drift_only_replacement_applies_full_tags(
+        self, template_bundle, context, config
+    ):
+        full_table_tags = {"owner": "analytics"}
+        full_column_tags = ColumnTagsConfig(set_column_tags={"id": {"classification": "internal"}})
+        config["databricks_tags"] = full_table_tags
+        config["on_configuration_change"] = "apply"
+        self.configure_build_context(context, full_refresh=False)
+        context["adapter"].get_column_tags_from_model.return_value = full_column_tags
+        context["get_configuration_changes"] = jinja_safe_mock(return_value=None)
+        context["dlt_inferred_query_schema_changed"] = jinja_safe_mock(return_value=True)
+        context["get_replace_sql"] = jinja_safe_mock(
+            return_value="CREATE OR REPLACE MATERIALIZED VIEW"
+        )
+
+        statements = capture_macro_return(
+            context,
+            template_bundle.template,
+            "dbt_macro__materialized_view_get_build_sql",
+            self.existing_relation("drifted", "is_materialized_view"),
+            template_bundle.relation,
+        )
+
+        context["get_set_tag_statements"].assert_called_once_with(
+            template_bundle.relation, full_table_tags, full_column_tags
+        )
+        assert statements == ["CREATE OR REPLACE MATERIALIZED VIEW", "TABLE TAGS", "COLUMN TAGS"]
 
     def test_type_change_caches_target_after_execution(self, template_bundle, context):
         self.configure_execution_context(context)
@@ -441,6 +471,7 @@ class TestStreamingTableMaterializationTags(DeltaLiveTableMaterializationTagsTes
         )
 
         context["execute_multiple_statements"].assert_called_once_with("REFRESH STREAMING TABLE")
+        context["validate_persist_doc_columns"].assert_called_once()
         context["cache_replaced_relation"].assert_not_called()
 
     def test_type_change_caches_target_after_execution(self, template_bundle, context):
