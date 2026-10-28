@@ -1,3 +1,9 @@
+## dbt-databricks 1.13.1 (TBD)
+
+### Fixes
+
+- Quote ephemeral CTE names so unit tests and ephemeral models no longer fail with an invalid-identifier error when a model, source, or `this` input name contains a hyphen ([#1732](https://github.com/databricks/dbt-databricks/pull/1732), see [dbt-core#10345](https://github.com/dbt-labs/dbt-core/issues/10345))
+
 ## dbt-databricks 1.13.0 (Oct 28, 2026)
 
 ### Features
