@@ -111,6 +111,34 @@ class TestGetReplaceSql(MacroTestBase):
         context["create_backup"].assert_not_called()
         context["drop_relation_if_exists"].assert_not_called()
 
+    @pytest.mark.parametrize("safe_replace", [False, True])
+    def test_materialized_view_uses_compatibility_rebuild_when_planned(
+        self, template_bundle, config, context, safe_replace
+    ):
+        config["use_safer_relation_operations"] = safe_replace
+        context["get_mv_compatibility_rebuild_sql"] = Mock(return_value="compatibility rebuild")
+        existing = model_relation("materialized_view")
+
+        statements = self.get_replace_sql(template_bundle, existing, "materialized_view")
+
+        assert statements == "compatibility rebuild"
+
+    @pytest.mark.parametrize(
+        "safe_replace, expected",
+        [
+            (False, "create or replace materialized view"),
+            (True, ["drop materialized_view", "create materialized_view"]),
+        ],
+    )
+    def test_materialized_view_without_compatibility_location_is_unchanged(
+        self, template_bundle, config, context, safe_replace, expected
+    ):
+        config["use_safer_relation_operations"] = safe_replace
+        context["get_mv_compatibility_rebuild_sql"] = Mock(return_value=None)
+        existing = model_relation("materialized_view")
+
+        assert self.get_replace_sql(template_bundle, existing, "materialized_view") == expected
+
 
 def model_relation(type):
     return DatabricksRelation.create(

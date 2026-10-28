@@ -1,6 +1,6 @@
 # Replace Flow
 
-_Last updated: 2026-10-23_
+_Last updated: 2026-10-28_
 
 Shared decision tree used when view, materialized-view, streaming-table, or metric-view helpers must
 replace an existing relation. Table and incremental V2 use their dedicated
@@ -19,7 +19,9 @@ flowchart TD
     TABLE -- yes --> ERROR[Raise not-implemented compiler error]
     TABLE -- no --> METRIC{Target and existing are both metric views?}
     METRIC -- yes --> METRICSQL[get_replace_metric_view_sql]
-    METRIC -- no --> VIEW{"Existing and target are ordinary views?"}
+    METRIC -- no --> COMPAT{"Target and existing are both materialized views\nand the model sets a Compatibility Mode location?"}
+    COMPAT -- yes --> COMPATSQL["get_mv_compatibility_rebuild_sql:<br/>same location and partitions: CREATE OR REPLACE;<br/>otherwise raise before any DROP"]
+    COMPAT -- no --> VIEW{"Existing and target are ordinary views?"}
     VIEW -- yes --> VIEWSQL[get_replace_view_sql]
     VIEW -- no --> SAFE{use_safer_relation_operations?}
 
@@ -37,6 +39,14 @@ flowchart TD
     EXISTRENAME2 -- yes --> BACKUP["backup_and_create_in_place:<br/>back up existing; create target;<br/>drop backup"]
     EXISTRENAME2 -- no --> DROP["drop_and_create:<br/>drop existing; create target"]
 ```
+
+A materialized view's Compatibility Mode location
+(`delta.universalFormat.compatibility.location`) stays reserved after the view is dropped, so
+`drop_and_create` at the same location fails with `LOCATION_OVERLAP` and leaves no view. When the
+model sets a location, the decision reads only the existing view's properties and partitions and
+ignores `use_safer_relation_operations`. It raises for an empty or changed location and for any
+partition change. The materialized view alter path's `partition_by` branch uses the same decision.
+Rebuilds whose model sets no location skip it and run no extra metadata queries.
 
 View-to-view replacement uses `CREATE OR REPLACE VIEW` through `get_create_view_as_sql`,
 regardless of file format or safer operations.
