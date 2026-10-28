@@ -1,8 +1,43 @@
-## dbt-databricks 1.12.8 (TBD)
+## dbt-databricks 1.13.1 (TBD)
 
 ### Fixes
 
 - Make `is_string()`, `is_number()`, `is_integer()`, `is_float()`, and `is_numeric()` recognize Databricks column types such as `string`, `int`, `tinyint`, and `decimal(p,s)` ([#1726](https://github.com/databricks/dbt-databricks/pull/1726) resolves [#1380](https://github.com/databricks/dbt-databricks/issues/1380))
+
+## dbt-databricks 1.13.0 (Oct 28, 2026)
+
+### Features
+
+- Merge `tblproperties` additively across config hierarchy levels instead of replacing parent values (thanks @canbekley!) ([#1353](https://github.com/databricks/dbt-databricks/pull/1353))
+- Add opt-in invocation telemetry for eligible commands, enabled with `connection_parameters.enable_dbt_telemetry`, that reports aggregate POST_PARSE model configuration statistics and POST_RUN outcomes when the workspace server flag allows it or `connection_parameters.force_enable_dbt_telemetry` is set ([#1647](https://github.com/databricks/dbt-databricks/pull/1647), [#1682](https://github.com/databricks/dbt-databricks/pull/1682), [#1648](https://github.com/databricks/dbt-databricks/pull/1648), [#1665](https://github.com/databricks/dbt-databricks/pull/1665))
+- **BREAKING for some view models:** Views use one materialization regardless of `use_materialization_v2`, so with the flag off `view_update_via_alter` now alters Unity Catalog views in place and fails on Hive metastore views, grants apply after tags, and view replacement calls `get_create_view_as_sql` overrides ([#1737](https://github.com/databricks/dbt-databricks/pull/1737))
+
+### Fixes
+
+- Stop `view_update_via_alter` failing with `UNRESOLVED_COLUMN` when a query change drops a column whose description also changed, and keep column comments after query changes on views inheriting a non-Delta `file_format` ([#1736](https://github.com/databricks/dbt-databricks/pull/1736))
+- Enforce model contracts and reject column masks and row filters when `view_update_via_alter` alters a view in place or finds no changes, matching `CREATE` ([#1736](https://github.com/databricks/dbt-databricks/pull/1736))
+- Replace views with `CREATE OR REPLACE VIEW` when `use_safer_relation_operations` is on, including views inheriting `file_format: parquet`, so upstream column drops or renames no longer fail with `UNRESOLVED_COLUMN` (thanks @shantanutheone!) ([#1733](https://github.com/databricks/dbt-databricks/pull/1733) resolves [#1714](https://github.com/databricks/dbt-databricks/issues/1714))
+- Skip `transaction: false` hooks with a warning by default, or run them without `COMMIT` when `use_non_transactional_hooks` is enabled; the inherited function/UDF materialization remains unchanged ([#1693](https://github.com/databricks/dbt-databricks/pull/1693) resolves [#1549](https://github.com/databricks/dbt-databricks/issues/1549))
+- Reapply view queries containing `*` when `view_update_via_alter` is enabled so upstream column additions appear, while unchanged explicit projections stay no-ops ([#1720](https://github.com/databricks/dbt-databricks/pull/1720) resolves [#1356](https://github.com/databricks/dbt-databricks/issues/1356))
+- Let Predictive Optimization manage models with `auto_liquid_cluster` instead of running synchronous `OPTIMIZE` after materialization ([#1658](https://github.com/databricks/dbt-databricks/pull/1658) resolves [#1655](https://github.com/databricks/dbt-databricks/issues/1655))
+- Skip unnecessary Unity Catalog constraint metadata queries for incremental models without enforced contracts ([#1643](https://github.com/databricks/dbt-databricks/pull/1643) resolves [#1641](https://github.com/databricks/dbt-databricks/issues/1641))
+- Recreate materialized views when query schema drifts, honoring `on_configuration_change` ([#1621](https://github.com/databricks/dbt-databricks/pull/1621) resolves [#1359](https://github.com/databricks/dbt-databricks/issues/1359))
+- Warn when documented columns are missing from table and incremental models, and honor `persist_docs.columns` for V2 column comments (thanks @r-jais!) ([#1563](https://github.com/databricks/dbt-databricks/pull/1563) resolves [dbt-labs/dbt-adapters#1690](https://github.com/dbt-labs/dbt-adapters/issues/1690))
+- Warn when documented columns are missing after creating views, materialized views, or streaming tables with `persist_docs.columns` enabled (thanks @r-jais!) ([#1615](https://github.com/databricks/dbt-databricks/pull/1615) resolves [#1399](https://github.com/databricks/dbt-databricks/issues/1399))
+- Log that `dbt clone` skips ephemeral models instead of reporting them missing from the state manifest (thanks @ajhlee-dbt!) ([#1663](https://github.com/databricks/dbt-databricks/pull/1663) resolves [dbt-labs/dbt#14474](https://github.com/dbt-labs/dbt/issues/14474))
+
+### Under the Hood
+
+- Raise the `dbt-core` upper bound to `<1.12.7` to include dbt-core 1.12.6 ([#1739](https://github.com/databricks/dbt-databricks/pull/1739))
+- Raise the `databricks-sql-connector` floor to `>=4.2.2` so the telemetry server check runs once per host instead of once per connection ([#1682](https://github.com/databricks/dbt-databricks/pull/1682))
+- Remove unused internal credential, pipeline, and connection logging-event classes ([#1547](https://github.com/databricks/dbt-databricks/pull/1547))
+- Fetch table tags through the Unity Catalog Entity Tag Assignments API to reduce metadata-query rate limiting, falling back to `information_schema` when the token cannot call the API ([#1603](https://github.com/databricks/dbt-databricks/pull/1603))
+
+## dbt-databricks 1.12.8 (Oct 24, 2026)
+
+### Fixes
+
+- Require `certifi>=2026.10.23` to pick up a security fix in its CA certificate bundle ([#1740](https://github.com/databricks/dbt-databricks/pull/1740))
 
 ## dbt-databricks 1.12.7 (Oct 12, 2026)
 
