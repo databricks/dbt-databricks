@@ -14,6 +14,10 @@ DESCRIBE TABLE {{ relation.render() }}
   DESCRIBE TABLE EXTENDED {{ relation.render() }} AS JSON
 {% endmacro %}
 
+{% macro databricks__get_empty_subquery_sql(select_sql, select_sql_header=none) %}
+  {{ return(dbt.default__get_empty_subquery_sql(adapter.clean_sql(select_sql), select_sql_header)) }}
+{% endmacro %}
+
 {% macro databricks__alter_relation_add_remove_columns(relation, add_columns, remove_columns) %}
   {% if remove_columns %}
     {{ unset_column_tags(relation, remove_columns) }}
