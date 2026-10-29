@@ -2,6 +2,7 @@
 
 ### Features
 
+- Add `merge_actions_explicit` config to supply the full `WHEN … THEN` block of a `merge` incremental model as raw SQL, enabling multiple matched or not-matched-by-source clauses and conditional deletes (thanks @mi-volodin!) ([#1018](https://github.com/databricks/dbt-databricks/pull/1018) resolves [#949](https://github.com/databricks/dbt-databricks/issues/949))
 - Merge `tblproperties` additively across config hierarchy levels instead of replacing parent values (thanks @canbekley!) ([#1353](https://github.com/databricks/dbt-databricks/pull/1353))
 - Add opt-in invocation telemetry for eligible commands, enabled with `connection_parameters.enable_dbt_telemetry`, that reports aggregate POST_PARSE model configuration statistics and POST_RUN outcomes when the workspace server flag allows it or `connection_parameters.force_enable_dbt_telemetry` is set ([#1647](https://github.com/databricks/dbt-databricks/pull/1647), [#1682](https://github.com/databricks/dbt-databricks/pull/1682), [#1648](https://github.com/databricks/dbt-databricks/pull/1648), [#1665](https://github.com/databricks/dbt-databricks/pull/1665))
 - **BREAKING for some view models:** Views use one materialization regardless of `use_materialization_v2`, so with the flag off `view_update_via_alter` now alters Unity Catalog views in place and fails on Hive metastore views, grants apply after tags, and view replacement calls `get_create_view_as_sql` overrides ([#1737](https://github.com/databricks/dbt-databricks/pull/1737))
