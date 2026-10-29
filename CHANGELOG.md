@@ -4,7 +4,7 @@
 
 - Load wide seeds faster by resolving the placeholder and `parquet` cast types once per seed instead of once per cell ([#1722](https://github.com/databricks/dbt-databricks/pull/1722))
 
-## dbt-databricks 1.13.0 (Oct 28, 2026)
+## dbt-databricks 1.13.0 (Oct 29, 2026)
 
 ### Features
 
