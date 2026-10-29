@@ -1,9 +1,3 @@
-## dbt-databricks next (TBD)
-
-### Under the Hood
-
-- Make the seed parsing functional test retry without leftover relations from an interrupted attempt (test-only, no runtime impact).
-
 ## dbt-databricks 1.13.0 (Oct 29, 2026)
 
 ### Features
