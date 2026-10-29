@@ -8,6 +8,8 @@
 
 ### Fixes
 
+- Escape single quotes and backslashes in relation names inside metadata queries to prevent syntax errors on Unity Catalog relations containing special characters (resolves [#1747](https://github.com/databricks/dbt-databricks/issues/1747))
+
 - Stop `view_update_via_alter` failing with `UNRESOLVED_COLUMN` when a query change drops a column whose description also changed, and keep column comments after query changes on views inheriting a non-Delta `file_format` ([#1736](https://github.com/databricks/dbt-databricks/pull/1736))
 - Enforce model contracts and reject column masks and row filters when `view_update_via_alter` alters a view in place or finds no changes, matching `CREATE` ([#1736](https://github.com/databricks/dbt-databricks/pull/1736))
 - Replace views with `CREATE OR REPLACE VIEW` when `use_safer_relation_operations` is on, including views inheriting `file_format: parquet`, so upstream column drops or renames no longer fail with `UNRESOLVED_COLUMN` (thanks @shantanutheone!) ([#1733](https://github.com/databricks/dbt-databricks/pull/1733) resolves [#1714](https://github.com/databricks/dbt-databricks/issues/1714))

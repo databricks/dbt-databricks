@@ -28,6 +28,19 @@ class TestTagsMacros(MacroTestBase):
         )
         assert sql == expected
 
+    def test_fetch_tags_sql_escapes_special_characters(self, template_bundle):
+        template_bundle.relation.database = "cat'a\\log"
+        template_bundle.relation.schema = "sch'e\\ma"
+        template_bundle.relation.identifier = "orders'eu\\test"
+        sql = self.render_bundle(template_bundle, "fetch_tags_sql")
+        expected = self.clean_sql(
+            "SELECT tag_name, tag_value "
+            "FROM `system`.`information_schema`.`table_tags` "
+            "WHERE catalog_name = 'cat\\'a\\\\log'"
+            " AND schema_name = 'sch\\'e\\\\ma' AND table_name = 'orders\\'eu\\\\test'"
+        )
+        assert sql == expected
+
     def test_get_set_tag_statements_returns_table_delta_and_changed_columns(
         self, template_bundle, context
     ):
