@@ -6,7 +6,7 @@
 - Stop `dbt clone` from failing on materialized views with a row filter and streaming tables with a row filter or column mask ([#1744](https://github.com/databricks/dbt-databricks/pull/1744))
 - Stop `dbt clone` from failing on views whose enforced contract changed since the deferred state ([#1742](https://github.com/databricks/dbt-databricks/pull/1742) resolves [#1349](https://github.com/databricks/dbt-databricks/issues/1349))
 
-## dbt-databricks 1.13.0 (Oct 28, 2026)
+## dbt-databricks 1.13.0 (Oct 29, 2026)
 
 ### Features
 
