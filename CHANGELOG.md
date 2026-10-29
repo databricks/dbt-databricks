@@ -22,6 +22,7 @@
 
 ### Under the Hood
 
+- Reset the snapshot constraint test before retries so transient failures do not cause duplicate-constraint errors (test-only, no runtime impact) ([#1735](https://github.com/databricks/dbt-databricks/pull/1735))
 - Raise the `dbt-core` upper bound to `<1.12.7` to include dbt-core 1.12.6 ([#1739](https://github.com/databricks/dbt-databricks/pull/1739))
 - Raise the `databricks-sql-connector` floor to `>=4.2.2` so the telemetry server check runs once per host instead of once per connection ([#1682](https://github.com/databricks/dbt-databricks/pull/1682))
 - Remove unused internal credential, pipeline, and connection logging-event classes ([#1547](https://github.com/databricks/dbt-databricks/pull/1547))
