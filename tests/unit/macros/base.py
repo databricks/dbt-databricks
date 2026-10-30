@@ -74,6 +74,9 @@ class MacroTestBase:
             "is_incremental": Mock(return_value=False),
             "api": mock_api,
             "local_md5": lambda s: f"hash({s})",
+            "escape_relation_literal": lambda val: (
+                str(val).replace("\\", "\\\\").replace("'", "\\'") if val is not None else ""
+            ),
         }
         return context
 

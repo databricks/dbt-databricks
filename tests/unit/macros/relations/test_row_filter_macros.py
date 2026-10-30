@@ -370,6 +370,28 @@ class TestFetchRowFiltersSql(MacroTestBase):
         """
         assert sql == self.clean_sql(expected)
 
+    def test_fetch_row_filters_sql_escapes_special_characters(self, template_bundle):
+        """Test that relation names with quotes and backslashes are properly escaped."""
+        template_bundle.relation.database = "cat'a\\log"
+        template_bundle.relation.schema = "sch'e\\ma"
+        template_bundle.relation.identifier = "orders'eu\\test"
+        sql = self.run_macro(
+            template_bundle.template, "fetch_row_filters_sql", template_bundle.relation
+        )
+        expected = """
+        SELECT
+          table_catalog,
+          table_schema,
+          table_name,
+          filter_name,
+          target_columns
+        FROM `cat'a\\log`.`information_schema`.`row_filters`
+        WHERE table_catalog = 'cat\\'a\\\\log'
+          AND table_schema = 'sch\\'e\\\\ma'
+          AND table_name = 'orders\\'eu\\\\test'
+        """
+        assert sql == self.clean_sql(expected)
+
 
 class TestDropRowFilterIfExists(MacroTestBase):
     """Tests for the drop_row_filter_if_exists macro."""
