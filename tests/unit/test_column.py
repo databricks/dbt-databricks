@@ -185,6 +185,52 @@ class TestDatabricksColumn:
         result = DatabricksColumn._parse_type_from_json(type_info)
         assert result == "struct<field1:string,field2:int>"
 
+    @pytest.mark.parametrize(
+        "field_name, expected",
+        [
+            pytest.param("_Field_1", "struct<_Field_1:string>", id="plain"),
+            pytest.param("first name", "struct<`first name`:string>", id="space"),
+            pytest.param("order-id", "struct<`order-id`:string>", id="hyphen"),
+            pytest.param("a.b", "struct<`a.b`:string>", id="dot"),
+            pytest.param("a:b", "struct<`a:b`:string>", id="colon"),
+            pytest.param("a`b", "struct<`a``b`:string>", id="backtick"),
+            pytest.param("1st", "struct<`1st`:string>", id="leading_digit"),
+        ],
+    )
+    def test_parse_type_from_json_struct_quotes_field_names(self, field_name, expected):
+        type_info = {
+            "name": "struct",
+            "fields": [{"name": field_name, "type": {"name": "string"}}],
+        }
+
+        assert DatabricksColumn._parse_type_from_json(type_info) == expected
+
+    def test_parse_type_from_json_nested_struct_quotes_field_names(self):
+        type_info = {
+            "name": "array",
+            "element_type": {
+                "name": "struct",
+                "fields": [
+                    {"name": "id", "type": {"name": "long"}},
+                    {
+                        "name": "line items",
+                        "type": {
+                            "name": "map",
+                            "key_type": {"name": "string"},
+                            "value_type": {
+                                "name": "struct",
+                                "fields": [{"name": "unit-price", "type": {"name": "double"}}],
+                            },
+                        },
+                    },
+                ],
+            },
+        }
+
+        assert DatabricksColumn._parse_type_from_json(type_info) == (
+            "array<struct<id:long,`line items`:map<string,struct<`unit-price`:double>>>>"
+        )
+
     def test_parse_type_from_json_array(self):
         """Test _parse_type_from_json with array type"""
         type_info = {"name": "array", "element_type": {"name": "string"}}

@@ -1,10 +1,21 @@
 import json
+import re
 from dataclasses import dataclass
 from typing import Any, ClassVar, Optional
 
 from dbt.adapters.spark.column import SparkColumn
 
 from dbt.adapters.databricks.utils import quote
+
+# Mirrors Spark's QuotingUtils.quoteIfNeeded, so ordinary field names stay unquoted.
+_UNQUOTED_FIELD_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def _quote_field_name_if_needed(name: str) -> str:
+    if _UNQUOTED_FIELD_NAME.fullmatch(name):
+        return name
+    escaped = name.replace("`", "``")
+    return f"`{escaped}`"
 
 
 @dataclass
@@ -82,7 +93,7 @@ class DatabricksColumn(SparkColumn):
             fields = type_info.get("fields", [])
             field_strs = []
             for field in fields:
-                field_name = field.get("name")
+                field_name = _quote_field_name_if_needed(field.get("name"))
                 field_type = cls._parse_type_from_json(field.get("type"))
                 field_strs.append(f"{field_name}:{field_type}")
             return f"struct<{','.join(field_strs)}>"
