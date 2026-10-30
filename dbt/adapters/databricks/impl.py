@@ -901,11 +901,11 @@ class DatabricksAdapter(SparkAdapter):
             )
             for relation, information in self._list_relations_with_information(schema_relation):
                 columns.extend(self._get_columns_for_catalog(relation, information))
-        # An empty input produces a 0-column table; force-typing absent columns
-        # would emit one RuntimeWarning per name. Skip the override in that case.
-        column_types = (
-            build_type_tester(self.CATALOG_TEXT_ONLY_COLUMNS) if columns else DEFAULT_TYPE_TESTER
-        )
+        # Rows omit None-valued keys, so a forced column can be absent from the table, and
+        # agate emits one RuntimeWarning per absent name. Only force the columns present.
+        present = {key for row in columns for key in row}
+        text_only = [col for col in self.CATALOG_TEXT_ONLY_COLUMNS if col in present]
+        column_types = build_type_tester(text_only) if text_only else DEFAULT_TYPE_TESTER
         return Table.from_object(columns, column_types=column_types)
 
     def _get_columns_for_catalog(  # type: ignore[override]
