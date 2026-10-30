@@ -20,6 +20,11 @@
 - Warn when documented columns are missing after creating views, materialized views, or streaming tables with `persist_docs.columns` enabled (thanks @r-jais!) ([#1615](https://github.com/databricks/dbt-databricks/pull/1615) resolves [#1399](https://github.com/databricks/dbt-databricks/issues/1399))
 - Log that `dbt clone` skips ephemeral models instead of reporting them missing from the state manifest (thanks @ajhlee-dbt!) ([#1663](https://github.com/databricks/dbt-databricks/pull/1663) resolves [dbt-labs/dbt#14474](https://github.com/dbt-labs/dbt/issues/14474))
 
+### Fixes
+
+- Use `create or replace table` instead of dropping the table first when a full refresh rebuilds an incremental model on a Unity Catalog managed Iceberg table ([#1669](https://github.com/databricks/dbt-databricks/pull/1669) resolves [#1662](https://github.com/databricks/dbt-databricks/issues/1662))
+- Use `create or replace table` instead of dropping the table first when the `table` materialization rebuilds a Unity Catalog managed Iceberg table ([#1674](https://github.com/databricks/dbt-databricks/pull/1674) resolves [#1662](https://github.com/databricks/dbt-databricks/issues/1662))
+
 ### Under the Hood
 
 - Raise the `dbt-core` upper bound to `<1.12.7` to include dbt-core 1.12.6 ([#1739](https://github.com/databricks/dbt-databricks/pull/1739))

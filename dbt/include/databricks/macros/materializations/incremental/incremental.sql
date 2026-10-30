@@ -11,9 +11,7 @@
   {% set partition_by = config.get('partition_by') %}
   {% set language = model['language'] %}
   {% set on_schema_change = incremental_validate_on_schema_change(config.get('on_schema_change'), default='ignore') %}
-  {% set is_delta = (catalog_relation.file_format == 'delta' and existing_relation.is_delta) %}
-  {% set is_iceberg = (catalog_relation.file_format == 'iceberg' and existing_relation.is_iceberg) %}
-  {% set is_replaceable_format = is_delta or is_iceberg %}
+  {% set is_replaceable_format = format_allows_create_or_replace(catalog_relation, existing_relation) %}
   {% set compiled_code = adapter.clean_sql(model['compiled_code']) %}
 
   {% if adapter.get_behavior_flag_no_warn('use_materialization_v2') %}
