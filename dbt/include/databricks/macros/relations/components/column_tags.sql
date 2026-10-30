@@ -26,7 +26,7 @@
   {{ log("Applying column tags to relation " ~ relation) }}
   {%- if column_tags.set_column_tags %}
     {%- for column, tags in column_tags.set_column_tags.items() -%}
-      {%- call statement('main') -%}
+      {%- call statement('apply_column_tags') -%}
         {{ alter_set_column_tags(relation, column, tags) }}
       {%- endcall -%}
     {%- endfor -%}
