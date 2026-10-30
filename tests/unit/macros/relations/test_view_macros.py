@@ -91,6 +91,10 @@ class TestCreateViewAs(MacroTestBase):
     def macro_folders_to_load(self) -> list:
         return ["macros", "macros/relations/view"]
 
+    @pytest.fixture(scope="class")
+    def databricks_template_names(self) -> list:
+        return ["relations/components/comment.sql"]
+
     def render_create_view_as(self, template_bundle, sql="select 1"):
         return self.run_macro(
             template_bundle.template,
@@ -113,6 +117,16 @@ class TestCreateViewAs(MacroTestBase):
         )
 
         assert sql == expected
+
+    def test_get_column_comment_sql_escapes_backslashes(self, template_bundle):
+        sql = self.run_macro(
+            template_bundle.template,
+            "get_column_comment_sql",
+            "pattern",
+            {"pattern": {"description": r"Bob\'s ^\d"}},
+        )
+
+        assert sql == r"`pattern` comment 'bob\\\'s ^\\d'"
 
 
 class TestAlterView(MacroTestBase):
