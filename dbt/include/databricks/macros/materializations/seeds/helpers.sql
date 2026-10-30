@@ -47,7 +47,7 @@
 
 {% macro databricks__reset_csv_table(model, full_refresh, old_relation, agate_table) %}
     {% if old_relation %}
-      {% if old_relation.can_be_replaced and adapter.resolve_file_format(config) in ('delta', 'iceberg') %}
+      {% if old_relation.can_be_replaced and (adapter.resolve_file_format(config) in ('delta', 'iceberg') or config.get('table_format') == 'iceberg') %}
         {% set sql = create_or_replace_csv_table(model, agate_table, True) %}
       {% else %}
         {{ adapter.drop_relation(old_relation) }}

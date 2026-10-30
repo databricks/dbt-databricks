@@ -380,10 +380,15 @@ class DatabricksAdapter(SparkAdapter):
         catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
         if catalog_relation.table_format == constants.ICEBERG_TABLE_FORMAT:
             self.require_capability(DBRCapability.ICEBERG)
-            if config.get("materialized") not in ("incremental", "table", "snapshot"):
+            if config.get("materialized") not in (
+                "incremental",
+                "table",
+                "snapshot",
+                "seed",
+            ):
                 raise DbtConfigError(
                     "When table_format is 'iceberg', materialized must be 'incremental'"
-                    ", 'table', or 'snapshot'."
+                    ", 'table', 'snapshot', or 'seed'."
                 )
             if (
                 self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
