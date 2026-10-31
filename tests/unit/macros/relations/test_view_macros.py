@@ -101,6 +101,7 @@ class TestCreateViewAs(MacroTestBase):
 
     def test_macros_create_view_as_tblproperties(self, config, template_bundle):
         config["tblproperties"] = {"tblproperties_to_view": "true"}
+        template_bundle.context["flags"] = Mock(WHICH="run")
         template_bundle.context["get_columns_in_query"] = Mock(return_value=[])
         template_bundle.context["column_mask_exists"] = Mock(return_value=False)
         template_bundle.context["column_tags_exist"] = Mock(return_value=False)
@@ -114,20 +115,36 @@ class TestCreateViewAs(MacroTestBase):
 
         assert sql == expected
 
-    @pytest.mark.parametrize("which, asserted", [("run", True), ("clone", False)])
-    def test_validate_view_model_contract_skipped_for_clone(
-        self, config, template_bundle, which, asserted
+    @pytest.mark.parametrize(
+        "which, materialized, policies_rejected, contract_asserted",
+        [
+            ("run", "view", True, True),
+            ("clone", "view", True, False),
+            ("clone", "materialized_view", False, False),
+            ("clone", "streaming_table", False, False),
+        ],
+    )
+    def test_validate_view_model_under_clone(
+        self, config, template_bundle, which, materialized, policies_rejected, contract_asserted
     ):
         config["contract"] = Mock(enforced=True)
         template_bundle.context["flags"] = Mock(WHICH=which)
-        template_bundle.context["column_mask_exists"] = Mock(return_value=False)
-        template_bundle.context["row_filter_exists"] = Mock(return_value=False)
+        template_bundle.context["model"].config.materialized = materialized
+        template_bundle.context["column_mask_exists"] = Mock(return_value=True)
+        template_bundle.context["row_filter_exists"] = Mock(return_value=True)
         assert_columns = Mock(return_value="")
         template_bundle.context["get_assert_columns_equivalent"] = assert_columns
 
         self.run_macro(template_bundle.template, "validate_view_model", "select 1")
 
-        assert assert_columns.called is asserted
+        raise_error = template_bundle.context["exceptions"].raise_compiler_error
+        raised = [call.args[0] for call in raise_error.call_args_list]
+        messages = [
+            "Column masks are not supported for views.",
+            "Row filters are not supported for views.",
+        ]
+        assert raised == (messages if policies_rejected else [])
+        assert assert_columns.called is contract_asserted
 
 
 class TestAlterView(MacroTestBase):
