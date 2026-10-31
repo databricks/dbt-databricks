@@ -4,6 +4,7 @@ from dbt.tests.adapter.dbt_clone.test_dbt_clone import BaseClone, BaseClonePossi
 from dbt.tests.util import run_dbt
 
 from tests.functional.adapter.dbt_clone import fixtures
+from tests.functional.adapter.fixtures import RerunSafeMixin
 
 
 class CleanupMixin:
@@ -337,3 +338,52 @@ class TestRebuildOverShallowClone(BaseClone, CleanupMixin):
             fetch="all",
         )
         assert [row[0] for row in rows] == [1]
+
+
+class TestCloneViewWithChangedContract(RerunSafeMixin, BaseClone, CleanupMixin):
+    """A view whose enforced contract changed since the deferred state still clones (#1349)."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "view_model.sql": fixtures.contract_view_model_sql,
+            "schema.yml": fixtures.contract_view_schema_yml,
+        }
+
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {}
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {}
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ["view_model"]
+
+    @pytest.fixture(autouse=True)
+    def reset_clone_target(self, project, other_schema):
+        project.create_test_schema(other_schema)
+        project.run_sql(f"drop view if exists `{project.database}`.`{other_schema}`.`view_model`")
+
+    def test_clone_view_with_changed_contract(self, project, unique_schema, other_schema):
+        run_dbt(["run"])
+        self.copy_state(project.project_root)
+
+        util.write_file(
+            fixtures.contract_view_model_renamed_sql,
+            project.project_root,
+            "models",
+            "view_model.sql",
+        )
+        util.write_file(
+            fixtures.contract_view_renamed_schema_yml, project.project_root, "models", "schema.yml"
+        )
+
+        run_dbt(["clone", "--state", "state", "--target", "otherschema"])
+
+        rows = project.run_sql(
+            f"select id, name from {project.database}.{other_schema}.view_model", fetch="all"
+        )
+        assert [tuple(row) for row in rows] == [(1, "a")]
