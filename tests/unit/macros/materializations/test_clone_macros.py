@@ -1,3 +1,4 @@
+import json
 from unittest.mock import Mock
 
 import pytest
@@ -142,3 +143,88 @@ class TestCloneRequiresDrop(MacroTestBase):
         # reset Delta history and break in-place full-refresh shallow clones.
         relation = self._relation(is_table=True, is_shallow_clone=False, databricks_table_type=None)
         assert self._requires_drop(template_bundle, relation) == "False"
+
+
+class TestCloneSourceHasPolicies(MacroTestBase):
+    @pytest.fixture(scope="class")
+    def template_name(self) -> str:
+        return "strategies.sql"
+
+    @pytest.fixture(scope="class")
+    def macro_folders_to_load(self) -> list:
+        return ["macros/materializations/clone", "macros/relations", "macros"]
+
+    @pytest.fixture
+    def source(self):
+        relation = Mock(spec=DatabricksRelation)
+        relation.database = "Main"
+        relation.schema = "Prod"
+        relation.identifier = "Orders"
+        relation.is_hive_metastore = Mock(return_value=False)
+        return relation
+
+    def test_policies_sql_reads_row_filters_and_column_masks(self, template_bundle, source):
+        sql = self.run_macro(template_bundle.template, "clone_source_policies_sql", source)
+
+        expected = self.clean_sql(
+            "select 1 from `Main`.`information_schema`.`row_filters` "
+            "where table_catalog = 'main' and table_schema = 'prod' and table_name = 'orders' "
+            "union all "
+            "select 1 from `Main`.`information_schema`.`column_masks` "
+            "where table_catalog = 'main' and table_schema = 'prod' and table_name = 'orders'"
+        )
+        assert sql == expected
+
+    def test_hive_metastore_source_skips_the_lookup(self, template_bundle, source):
+        # Hive metastore has no information_schema policy views to query.
+        source.is_hive_metastore.return_value = True
+        load_result = Mock()
+        template_bundle.context["load_result"] = load_result
+
+        rendered = self.run_macro_raw(template_bundle.template, "clone_source_has_policies", source)
+
+        assert rendered.strip() == "False"
+        load_result.assert_not_called()
+
+    def _has_policies(self, template_bundle, source, *, use_json, capability, metadata=None):
+        context = template_bundle.context
+        context["adapter"].behavior.use_describe_as_json_for_relation_metadata.no_warn = use_json
+        context["adapter"].has_dbr_capability.return_value = capability
+        describe = Mock(return_value=Mock(rows=[{"json_metadata": json.dumps(metadata or {})}]))
+        context["describe_table_extended_as_json"] = describe
+        context["fromjson"] = json.loads
+        context["statement"] = Mock(return_value="")
+        load_result = Mock(return_value=Mock(table=Mock(rows=[(1,)])))
+        context["load_result"] = load_result
+        rendered = self.run_macro_raw(template_bundle.template, "clone_source_has_policies", source)
+        return rendered.strip(), describe, load_result
+
+    @pytest.mark.parametrize(
+        "metadata, expected",
+        [
+            ({"row_filter": {"column_names": ["region"]}}, "True"),
+            ({"column_masks": [{"column_name": "password"}]}, "True"),
+            ({}, "False"),
+            ({"row_filter": None, "column_masks": []}, "False"),
+        ],
+    )
+    def test_describe_json_reads_policies_when_enabled(
+        self, template_bundle, source, metadata, expected
+    ):
+        has_policies, describe, load_result = self._has_policies(
+            template_bundle, source, use_json=True, capability=True, metadata=metadata
+        )
+
+        assert has_policies == expected
+        describe.assert_called_once_with(source)
+        load_result.assert_not_called()
+
+    @pytest.mark.parametrize("use_json, capability", [(False, True), (True, False)])
+    def test_information_schema_fallback(self, template_bundle, source, use_json, capability):
+        has_policies, describe, load_result = self._has_policies(
+            template_bundle, source, use_json=use_json, capability=capability
+        )
+
+        assert has_policies == "True"
+        describe.assert_not_called()
+        load_result.assert_called_once_with("clone_source_policies")
