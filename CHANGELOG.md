@@ -2,7 +2,7 @@
 
 ### Fixes
 
-- Apply `tblproperties` changes before an incremental run writes to the table instead of after it, so a property such as `delta.enableChangeDataFeed` covers the run that sets it (thanks @gibkim!) ([#1716](https://github.com/databricks/dbt-databricks/pull/1716) resolves [#1121](https://github.com/databricks/dbt-databricks/issues/1121))
+- Apply `tblproperties` changes before an incremental run writes to the table instead of after it, so a property such as `delta.enableChangeDataFeed` covers the run that sets it. A run that turns on `delta.appendOnly` while its `merge` updates rows now fails in that run instead of the next one (thanks @gibkim!) ([#1716](https://github.com/databricks/dbt-databricks/pull/1716) resolves [#1121](https://github.com/databricks/dbt-databricks/issues/1121))
 
 ## dbt-databricks 1.12.8 (Oct 24, 2026)
 

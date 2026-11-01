@@ -69,6 +69,14 @@ class TestIncrementalTblpropertiesBeforeWrite(RerunSafeMixin):
         ]
 
 
+class TestIncrementalTblpropertiesBeforeWriteV2(TestIncrementalTblpropertiesBeforeWrite):
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {"use_materialization_v2": True},
+        }
+
+
 @pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster")
 class TestIncrementalPythonTblproperties(RerunSafeMixin):
