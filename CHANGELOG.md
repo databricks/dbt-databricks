@@ -5,8 +5,11 @@
 - Stop `dbt clone` from failing on Unity Catalog tables with a row filter or column mask, which can't be shallow-cloned; they now clone as a view over the deferred table that applies its policies for whoever queries it ([#1745](https://github.com/databricks/dbt-databricks/pull/1745))
 - Stop `dbt clone` from failing on materialized views with a row filter and streaming tables with a row filter or column mask ([#1744](https://github.com/databricks/dbt-databricks/pull/1744))
 - Stop `dbt clone` from failing on views whose enforced contract changed since the deferred state ([#1742](https://github.com/databricks/dbt-databricks/pull/1742) resolves [#1349](https://github.com/databricks/dbt-databricks/issues/1349))
+- Make `is_string()`, `is_number()`, `is_integer()`, `is_float()`, and `is_numeric()` recognize Databricks column types such as `string`, `int`, `tinyint`, and `decimal(p,s)` ([#1726](https://github.com/databricks/dbt-databricks/pull/1726) resolves [#1380](https://github.com/databricks/dbt-databricks/issues/1380))
+- Hide credential-like keys nested inside `session_properties` from `dbt debug` connection output ([#1728](https://github.com/databricks/dbt-databricks/pull/1728) resolves [#1724](https://github.com/databricks/dbt-databricks/issues/1724))
+- Fix unit tests and direct `get_columns_in_query` calls failing with `PARSE_SYNTAX_ERROR` when a model's SQL ends with a semicolon ([#1729](https://github.com/databricks/dbt-databricks/pull/1729) resolves [#1725](https://github.com/databricks/dbt-databricks/issues/1725))
 
-## dbt-databricks 1.13.0 (Oct 28, 2026)
+## dbt-databricks 1.13.0 (Oct 29, 2026)
 
 ### Features
 
