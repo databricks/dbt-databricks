@@ -6,17 +6,12 @@
 #
 # Triggers:
 #   - push to main when dependency files change (keeps cache fresh)
-#   - same-repository PRs that change this workflow (warms the PR merge ref)
 #   - daily schedule (prevents 7-day GitHub Actions cache eviction)
 #   - manual dispatch (with optional PR number to warm cache for a fork's deps)
 
 name: Warm Python Dependency Cache
 
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - ".github/workflows/warmDepsCache.yml"
   push:
     branches: [main]
     paths:
@@ -41,7 +36,6 @@ permissions:
 
 jobs:
   warm-cache:
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on:
       group: databricks-protected-runner-group
       labels: linux-ubuntu-latest
