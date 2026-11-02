@@ -6,6 +6,7 @@
 
 ### Fixes
 
+- Stop `dbt docs generate` from emitting a `RuntimeWarning` per schema for catalog metadata columns that are absent from the results (thanks @emrekabalcii!) ([#1749](https://github.com/databricks/dbt-databricks/pull/1749) resolves [#1748](https://github.com/databricks/dbt-databricks/issues/1748))
 - Unset tags on columns that a `table` model or incremental full refresh removes, so replacing a relation no longer fails with `CANNOT_DROP_TAGGED_COLUMN` when a removed column carries a governed tag ([#1707](https://github.com/databricks/dbt-databricks/pull/1707) resolves [#1684](https://github.com/databricks/dbt-databricks/issues/1684))
 - Load wide seeds faster by resolving the placeholder and `parquet` cast types once per seed instead of once per cell ([#1722](https://github.com/databricks/dbt-databricks/pull/1722))
 - Stop materialized views with a Compatibility Mode location from being dropped and lost when `use_safer_relation_operations` or a `partition_by` change would recreate them at the same location. Unchanged partitions now use `CREATE OR REPLACE`, and location or partition changes fail before anything is dropped ([#1727](https://github.com/databricks/dbt-databricks/pull/1727))
