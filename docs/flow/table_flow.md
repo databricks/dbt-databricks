@@ -75,3 +75,8 @@ Python paths also clean up the intermediate relation after optimization. Unlike 
 
 Safe staging renames tables, which Databricks rejects for Hive metastore managed Delta tables on
 S3 unless `spark.databricks.delta.alterTable.rename.enabledOnAWS` is set on the cluster.
+
+When a build drops the existing relation or uses safe staging, it calls `cache_replaced_relation`
+(see the [replace flow](replace_flow.md)) after creating the table and before post-hooks, so the
+model's post-hooks and later lookups in the run see the new table. An ordinary `CREATE OR REPLACE`
+rebuild of an existing table does not touch the relation cache.

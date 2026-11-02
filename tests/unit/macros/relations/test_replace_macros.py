@@ -1,6 +1,8 @@
-from unittest.mock import Mock, call
+from unittest.mock import Mock
 
 import pytest
+from dbt.adapters.cache import RelationsCache
+from dbt.adapters.spark.impl import KEY_TABLE_OWNER
 from dbt_common.exceptions.macros import MacroReturn
 
 from dbt.adapters.databricks.relation import DatabricksRelation
@@ -111,11 +113,48 @@ class TestGetReplaceSql(MacroTestBase):
         context["create_backup"].assert_not_called()
         context["drop_relation_if_exists"].assert_not_called()
 
+    @pytest.mark.parametrize("safe_replace", [False, True])
+    def test_materialized_view_uses_compatibility_rebuild_when_planned(
+        self, template_bundle, config, context, safe_replace
+    ):
+        config["use_safer_relation_operations"] = safe_replace
+        context["get_mv_compatibility_rebuild_sql"] = Mock(return_value="compatibility rebuild")
+        existing = model_relation("materialized_view")
 
-def model_relation(type):
-    return DatabricksRelation.create(
-        database="main", schema="schema", identifier="model", type=type
+        statements = self.get_replace_sql(template_bundle, existing, "materialized_view")
+
+        assert statements == "compatibility rebuild"
+
+    @pytest.mark.parametrize(
+        "safe_replace, expected",
+        [
+            (False, "create or replace materialized view"),
+            (True, ["drop materialized_view", "create materialized_view"]),
+        ],
     )
+    def test_materialized_view_without_compatibility_location_is_unchanged(
+        self, template_bundle, config, context, safe_replace, expected
+    ):
+        config["use_safer_relation_operations"] = safe_replace
+        context["get_mv_compatibility_rebuild_sql"] = Mock(return_value=None)
+        existing = model_relation("materialized_view")
+
+        assert self.get_replace_sql(template_bundle, existing, "materialized_view") == expected
+
+
+def model_relation(type, **kwargs):
+    return DatabricksRelation.create(
+        database="main", schema="schema", identifier="model", type=type, **kwargs
+    )
+
+
+def add_after_model(cache, relation):
+    """What dbt-core does for a materialization's returned relations after the model."""
+    cache.add(relation.incorporate(dbt_created=True))
+
+
+def cached_model(cache):
+    return next((r for r in cache.get_relations("main", "schema") if r.identifier == "model"), None)
 
 
 class TestCacheReplacedRelation(MacroTestBase):
@@ -127,29 +166,58 @@ class TestCacheReplacedRelation(MacroTestBase):
     def macro_folders_to_load(self) -> list:
         return ["macros/relations", "macros"]
 
-    def cache_calls(self, template_bundle, context, cached, target):
-        context["adapter"].get_relation.return_value = cached
+    def make_cache(self, entry=None):
+        cache = RelationsCache()
+        cache.add_schema("main", "schema")
+        if entry is not None:
+            cache.add(entry)
+        return cache
+
+    def run_helper(self, template_bundle, context, cache, target):
+        adapter = context["adapter"]
+        adapter.get_relation = lambda database, schema, identifier: next(
+            (
+                r
+                for r in cache.get_relations(database, schema)
+                if r.matches(database, schema, identifier)
+            ),
+            None,
+        )
+        adapter.cache_added = cache.add
+        adapter.cache_dropped = cache.drop
         self.run_macro_raw(template_bundle.template, "cache_replaced_relation", target)
-        return [c for c in context["adapter"].mock_calls if c[0].startswith("cache_")]
 
-    def test_replaces_entry_of_another_type(self, template_bundle, context):
-        cached = model_relation("materialized_view")
+    def test_missing_entry_matches_dbt_core(self, template_bundle, context):
         target = model_relation("view")
+        cache = self.make_cache()
+        dbt_core_only = self.make_cache()
 
-        assert self.cache_calls(template_bundle, context, cached, target) == [
-            call.cache_dropped(cached),
-            call.cache_added(target),
-        ]
+        self.run_helper(template_bundle, context, cache, target)
+        assert cached_model(cache) == target.incorporate(dbt_created=True)
 
-    def test_adds_missing_entry(self, template_bundle, context):
+        add_after_model(cache, target)
+        add_after_model(dbt_core_only, target)
+        assert cached_model(cache) == cached_model(dbt_core_only)
+
+    def test_entry_of_another_type_becomes_dbt_core_entry(self, template_bundle, context):
         target = model_relation("view")
+        cache = self.make_cache(model_relation("materialized_view"))
 
-        assert self.cache_calls(template_bundle, context, None, target) == [
-            call.cache_added(target)
-        ]
+        self.run_helper(template_bundle, context, cache, target)
+        assert cached_model(cache) == target.incorporate(dbt_created=True)
 
-    def test_keeps_entry_of_same_type(self, template_bundle, context):
-        cached = model_relation("materialized_view")
+        add_after_model(cache, target)
+        assert cached_model(cache) == target.incorporate(dbt_created=True)
+
+    def test_entry_of_same_type_is_kept(self, template_bundle, context):
+        existing = model_relation("materialized_view", metadata={KEY_TABLE_OWNER: "owner"})
         target = model_relation("materialized_view")
+        cache = self.make_cache(existing)
+        dbt_core_only = self.make_cache(existing)
 
-        assert self.cache_calls(template_bundle, context, cached, target) == []
+        self.run_helper(template_bundle, context, cache, target)
+        assert cached_model(cache) == existing
+
+        add_after_model(cache, target)
+        add_after_model(dbt_core_only, target)
+        assert cached_model(cache) == cached_model(dbt_core_only) == existing

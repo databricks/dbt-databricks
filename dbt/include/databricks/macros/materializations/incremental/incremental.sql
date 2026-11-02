@@ -16,7 +16,7 @@
   {% set is_replaceable_format = is_delta or is_iceberg %}
   {% set compiled_code = adapter.clean_sql(model['compiled_code']) %}
 
-  {% if adapter.get_behavior_flag_no_warn('use_materialization_v2') %}
+  {% if use_materialization_v2() %}
     {{ log("USING V2 MATERIALIZATION") }}
     {#-- Set vars --#}
     {% set safe_create = config.get('use_safer_relation_operations', False) | as_bool  %}
@@ -42,9 +42,11 @@
       {% if safe_create and existing_relation.can_be_renamed %}
         {{ log("Safe create enabled and relation can be renamed") }}
         {{ safe_relation_replace(existing_relation, staging_relation, intermediate_relation, compiled_code) }}
+        {% do cache_replaced_relation(target_relation) %}
       {% else %}
         {#-- Relation must be dropped & recreated --#}
-        {% if not is_replaceable or existing_relation.is_shallow_clone %} {#-- Delta uses `create or replace` below, except a shallow clone must be dropped --#}
+        {% set drop_existing = not is_replaceable or existing_relation.is_shallow_clone %}
+        {% if drop_existing %} {#-- Delta uses `create or replace` below, except a shallow clone must be dropped --#}
           {{ log("Dropping existing relation, as it is not replaceable") }}
           {% do adapter.drop_relation(existing_relation) %}
         {% else %}
@@ -52,6 +54,9 @@
         {% endif %}
         {{ log("Replacing target relation") }}
         {{ create_table_at(target_relation, intermediate_relation, compiled_code) }}
+        {% if drop_existing %}
+          {% do cache_replaced_relation(target_relation) %}
+        {% endif %}
       {% endif %}
     {%- else -%}
       {{ log("Existing relation found, proceeding with incremental work")}}
@@ -124,7 +129,8 @@
       {% do persist_docs(target_relation, model, for_relation=language=='python') %}
     {%- elif existing_relation.is_view or existing_relation.is_materialized_view or existing_relation.is_streaming_table or should_full_refresh() -%}
       {#-- Relation must be dropped & recreated --#}
-      {% if not is_replaceable_format or existing_relation.is_shallow_clone %} {#-- Delta/Iceberg uses `create or replace` below, except a shallow clone must be dropped --#}
+      {% set drop_existing = not is_replaceable_format or existing_relation.is_shallow_clone %}
+      {% if drop_existing %} {#-- Delta/Iceberg uses `create or replace` below, except a shallow clone must be dropped --#}
         {% do adapter.drop_relation(existing_relation) %}
       {% elif language == 'sql' %}
         {{ unset_tags_on_removed_columns(existing_relation, get_columns_in_query(compiled_code)) }}
@@ -132,6 +138,9 @@
       {%- call statement('main', language=language) -%}
         {{ create_table_as(False, target_relation, compiled_code, language) }}
       {%- endcall -%}
+      {% if drop_existing %}
+        {% do cache_replaced_relation(target_relation) %}
+      {% endif %}
 
       {% if not existing_relation.is_view %}
         {% do persist_constraints(target_relation, model) %}
