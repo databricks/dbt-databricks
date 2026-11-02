@@ -439,6 +439,7 @@ class TestRecordTypes:
                         "columns": [],
                     }
                 ],
+                "contract_enforced": True,
             },
             "row_filter": {
                 "function": "cat.sch.filt",

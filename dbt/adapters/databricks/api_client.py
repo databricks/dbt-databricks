@@ -6,10 +6,12 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any, Optional
+from urllib.parse import quote
 
 from dbt_common.exceptions import DbtRuntimeError
 
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.errors import PermissionDenied
 from databricks.sdk.service.compute import (
     CommandStatus,
     CommandStatusResponse,
@@ -296,6 +298,37 @@ class CurrUserApi:
     def is_service_principal(self, username: str) -> bool:
         uuid_pattern = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
         return bool(re.match(uuid_pattern, username, re.IGNORECASE))
+
+
+class EntityTagAssignmentsApi:
+    def __init__(self, workspace_client: WorkspaceClient):
+        self.workspace_client = workspace_client
+        self.permission_denied = False
+
+    def list_table_tags(self, entity_name: str) -> Optional[dict[str, str]]:
+        """List tag assignments for a table-like Unity Catalog entity.
+
+        `entity_type="tables"` covers views, materialized views, and metric views as well.
+        Returns None once the API has denied access, such as a token without the
+        `unity-catalog` scope, so callers can read tags another way.
+        """
+        if self.permission_denied:
+            return None
+        try:
+            # max_results is a page size, not a cap: the SDK returns a generator that follows
+            # next_page_token until it is absent, so consuming it yields every assignment.
+            assignments = self.workspace_client.entity_tag_assignments.list(
+                entity_type="tables",
+                entity_name=quote(entity_name, safe=""),
+                max_results=50,
+            )
+            return {assignment.tag_key: assignment.tag_value or "" for assignment in assignments}
+        except PermissionDenied as e:
+            self.permission_denied = True
+            logger.debug(f"Unity Catalog tag assignments API denied access, not retrying: {e}")
+            return None
+        except Exception as e:
+            raise DbtRuntimeError(f"Error fetching table tags for {entity_name}: {e}")
 
 
 # Switch to this as part of 2.0.0 release
@@ -955,6 +988,7 @@ class DatabricksApiClient:
         self.clusters = ClusterApi(workspace_client, self.libraries)
         self.command_contexts = CommandContextApi(workspace_client, self.clusters, self.libraries)
         self.curr_user = CurrUserApi(workspace_client)
+        self.entity_tag_assignments = EntityTagAssignmentsApi(workspace_client)
         if use_user_folder:
             self.folders: FolderApi = UserFolderApi(self.curr_user)
         else:
