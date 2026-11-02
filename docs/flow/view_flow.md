@@ -1,6 +1,6 @@
 # View Flow
 
-_Last updated: 2026-10-24_
+_Last updated: 2026-10-26_
 
 > Views run one flow; the `use_materialization_v2` behavior flag does not change it. See
 > [flow/README.md](README.md) for the flag. Source:
@@ -40,11 +40,14 @@ flowchart LR
 
 `relation_should_be_altered` rejects the Hive metastore when alter-in-place was requested.
 `validate_view_model` is the same check `create_view_as` runs: it rejects column masks and row
-filters and asserts an enforced contract, so ALTER and no-op runs fail where CREATE would. Under
-`dbt clone` the contract is not asserted, because the cloned view selects from the deferred
-relation rather than the current model. A replacement applies table and column tags after
-`get_replace_sql`; an in-place alter applies the configuration changes returned by relation
-configuration comparison.
+filters and asserts an enforced contract, so ALTER and no-op runs fail where CREATE would. A
+replacement applies table and column tags after `get_replace_sql`; an in-place alter applies the
+configuration changes returned by relation configuration comparison.
+
+Under `dbt clone` the view is `select *` over the deferred relation, so the contract is not
+asserted. Materialized views and streaming tables also clone as views and skip the mask and
+row-filter rejection: the deferred object enforces production's policies, not the current config.
+Plain views still reject both.
 
 When `view_update_via_alter` is enabled, SQL containing `*` is reapplied even when its text is
 unchanged, so wildcard views pick up upstream column additions. The check uses the compiled SQL

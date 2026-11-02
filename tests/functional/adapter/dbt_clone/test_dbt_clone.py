@@ -387,3 +387,88 @@ class TestCloneViewWithChangedContract(RerunSafeMixin, BaseClone, CleanupMixin):
             f"select id, name from {project.database}.{other_schema}.view_model", fetch="all"
         )
         assert [tuple(row) for row in rows] == [(1, "a")]
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestCloneRowFilteredMaterializedView(BaseClone, CleanupMixin):
+    """A materialized view with a row filter clones to a view that reads through the filter."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "governed_model.sql": fixtures.row_filter_mv_sql,
+            "schema.yml": fixtures.row_filter_schema_yml,
+        }
+
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {}
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {}
+
+    policy_function = "region_a_filter(region string) returns boolean return region = 'a'"
+    select_columns = "region, id"
+    expected_rows: list[tuple] = [("a", 1)]
+
+    def build_prod(self, project):
+        run_dbt(["run"])
+
+    def test_clone_governed_model(self, project, other_schema):
+        project.run_sql(
+            f"create or replace function {project.database}.{project.test_schema}."
+            f"{self.policy_function}"
+        )
+        project.create_test_schema(other_schema)
+        self.build_prod(project)
+        self.copy_state(project.project_root)
+
+        run_dbt(["clone", "--state", "state", "--target", "otherschema"])
+
+        assert _table_type(project, other_schema, "governed_model") == "VIEW"
+        rows = project.run_sql(
+            f"select {self.select_columns} from {project.database}.{other_schema}.governed_model",
+            fetch="all",
+        )
+        assert [tuple(row) for row in rows] == self.expected_rows
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestCloneRowFilteredStreamingTable(TestCloneRowFilteredMaterializedView):
+    """A streaming table with a row filter clones to a view that reads through the filter."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "governed_model.sql": fixtures.row_filter_st_sql,
+            "schema.yml": fixtures.row_filter_schema_yml,
+        }
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {"row_filter_seed.csv": fixtures.row_filter_seed_csv}
+
+    def build_prod(self, project):
+        run_dbt(["seed"])
+        run_dbt(["run"])
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestCloneColumnMaskedStreamingTable(TestCloneRowFilteredStreamingTable):
+    """A streaming table with a column mask clones to a view that reads through the mask."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "governed_model.sql": fixtures.column_mask_st_sql,
+            "schema.yml": fixtures.column_mask_schema_yml,
+        }
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {"column_mask_seed.csv": fixtures.column_mask_seed_csv}
+
+    policy_function = "password_mask(password string) returns string return '*****'"
+    select_columns = "id, password"
+    expected_rows = [("abc123", "*****")]

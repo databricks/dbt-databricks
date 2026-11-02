@@ -2,6 +2,7 @@
 
 ### Fixes
 
+- Stop `dbt clone` from failing on materialized views with a row filter and streaming tables with a row filter or column mask ([#1744](https://github.com/databricks/dbt-databricks/pull/1744))
 - Stop `dbt clone` from failing on views whose enforced contract changed since the deferred state ([#1742](https://github.com/databricks/dbt-databricks/pull/1742) resolves [#1349](https://github.com/databricks/dbt-databricks/issues/1349))
 - Make `is_string()`, `is_number()`, `is_integer()`, `is_float()`, and `is_numeric()` recognize Databricks column types such as `string`, `int`, `tinyint`, and `decimal(p,s)` ([#1726](https://github.com/databricks/dbt-databricks/pull/1726) resolves [#1380](https://github.com/databricks/dbt-databricks/issues/1380))
 - Hide credential-like keys nested inside `session_properties` from `dbt debug` connection output ([#1728](https://github.com/databricks/dbt-databricks/pull/1728) resolves [#1724](https://github.com/databricks/dbt-databricks/issues/1724))
