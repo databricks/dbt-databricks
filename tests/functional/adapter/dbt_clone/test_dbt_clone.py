@@ -4,7 +4,11 @@ from dbt.tests.adapter.dbt_clone.test_dbt_clone import BaseClone, BaseClonePossi
 from dbt.tests.util import run_dbt
 
 from tests.functional.adapter.dbt_clone import fixtures
-from tests.functional.adapter.fixtures import RerunSafeMixin
+from tests.functional.adapter.fixtures import (
+    MaterializationV2Mixin,
+    RequiresDescribeAsJsonCapabilityMixin,
+    RerunSafeMixin,
+)
 
 
 class CleanupMixin:
@@ -472,3 +476,79 @@ class TestCloneColumnMaskedStreamingTable(TestCloneRowFilteredStreamingTable):
     policy_function = "password_mask(password string) returns string return '*****'"
     select_columns = "id, password"
     expected_rows = [("abc123", "*****")]
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestCloneRowFilteredTable(TestCloneRowFilteredMaterializedView):
+    """A table with a row filter can't be shallow-cloned, so it clones to a view that reads
+    through the filter."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "governed_model.sql": fixtures.row_filter_table_sql,
+            "schema.yml": fixtures.row_filter_schema_yml,
+        }
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestCloneRowFilterAppliedOutsideDbt(TestCloneRowFilteredTable):
+    """The clone follows the deferred table's policies, not the model config."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"governed_model.sql": fixtures.row_filter_table_sql}
+
+    def build_prod(self, project):
+        run_dbt(["run"])
+        schema = f"{project.database}.{project.test_schema}"
+        project.run_sql(
+            f"alter table {schema}.governed_model "
+            f"set row filter {schema}.region_a_filter on (region)"
+        )
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestCloneColumnMaskedTable(MaterializationV2Mixin, TestCloneRowFilteredTable):
+    """A table with a column mask clones to a view that reads through the mask.
+
+    V1 tables don't apply column masks at create, so prod is built with V2.
+    """
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "governed_model.sql": fixtures.column_mask_table_sql,
+            "schema.yml": fixtures.column_mask_schema_yml,
+        }
+
+    policy_function = "password_mask(password string) returns string return '*****'"
+    select_columns = "id, password"
+    expected_rows = [("abc123", "*****")]
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestCloneRowFilterAppliedOutsideDbtDescribeAsJson(
+    RequiresDescribeAsJsonCapabilityMixin, TestCloneRowFilterAppliedOutsideDbt
+):
+    """The DESCRIBE TABLE EXTENDED AS JSON lookup also finds a row filter."""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"use_describe_as_json_for_relation_metadata": True}}
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestCloneColumnMaskedTableDescribeAsJson(
+    RequiresDescribeAsJsonCapabilityMixin, TestCloneColumnMaskedTable
+):
+    """The DESCRIBE TABLE EXTENDED AS JSON lookup also finds a column mask."""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {
+                "use_materialization_v2": True,
+                "use_describe_as_json_for_relation_metadata": True,
+            }
+        }

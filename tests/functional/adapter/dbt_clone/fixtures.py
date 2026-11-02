@@ -122,3 +122,17 @@ models:
         column_mask:
           function: password_mask
 """
+
+row_filter_table_sql = """
+{{ config(materialized = 'table') }}
+
+select 'a' as region, 1 as id
+union all
+select 'b' as region, 2 as id
+"""
+
+column_mask_table_sql = """
+{{ config(materialized = 'table') }}
+
+select 'abc123' as id, 'secret' as password
+"""
