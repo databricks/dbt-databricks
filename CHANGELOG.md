@@ -1,8 +1,15 @@
 ## dbt-databricks 1.13.1 (TBD)
 
+### Features
+
+- Accept `use_materialization_v2` as a model config, so a project or an individual table or incremental model can choose between the atomic `CREATE OR REPLACE TABLE … AS SELECT` path and the create-then-insert path; models that don't set it follow the `use_materialization_v2` behavior flag, and view models ignore it ([#1718](https://github.com/databricks/dbt-databricks/pull/1718))
+
 ### Fixes
 
 - Stop `dbt docs generate` from emitting a `RuntimeWarning` per schema for catalog metadata columns that are absent from the results (thanks @emrekabalcii!) ([#1749](https://github.com/databricks/dbt-databricks/pull/1749) resolves [#1748](https://github.com/databricks/dbt-databricks/issues/1748))
+- Unset tags on columns that a `table` model or incremental full refresh removes, so replacing a relation no longer fails with `CANNOT_DROP_TAGGED_COLUMN` when a removed column carries a governed tag ([#1707](https://github.com/databricks/dbt-databricks/pull/1707) resolves [#1684](https://github.com/databricks/dbt-databricks/issues/1684))
+- Load wide seeds faster by resolving the placeholder and `parquet` cast types once per seed instead of once per cell ([#1722](https://github.com/databricks/dbt-databricks/pull/1722))
+- Stop materialized views with a Compatibility Mode location from being dropped and lost when `use_safer_relation_operations` or a `partition_by` change would recreate them at the same location. Unchanged partitions now use `CREATE OR REPLACE`, and location or partition changes fail before anything is dropped ([#1727](https://github.com/databricks/dbt-databricks/pull/1727))
 - Make the new table visible to the model's post-hooks and the rest of the run when a table or incremental model replaces a view, materialized view, or streaming table ([#1708](https://github.com/databricks/dbt-databricks/pull/1708))
 - Stop `dbt clone` from failing on Unity Catalog tables with a row filter or column mask, which can't be shallow-cloned; they now clone as a view over the deferred table that applies its policies for whoever queries it ([#1745](https://github.com/databricks/dbt-databricks/pull/1745))
 - Stop `dbt clone` from failing on materialized views with a row filter and streaming tables with a row filter or column mask ([#1744](https://github.com/databricks/dbt-databricks/pull/1744))
