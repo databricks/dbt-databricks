@@ -6,6 +6,7 @@
 
 ### Fixes
 
+- Stop materialized views with a Compatibility Mode location from being dropped and lost when `use_safer_relation_operations` or a `partition_by` change would recreate them at the same location. Unchanged partitions now use `CREATE OR REPLACE`, and location or partition changes fail before anything is dropped ([#1727](https://github.com/databricks/dbt-databricks/pull/1727))
 - Make the new table visible to the model's post-hooks and the rest of the run when a table or incremental model replaces a view, materialized view, or streaming table ([#1708](https://github.com/databricks/dbt-databricks/pull/1708))
 - Stop `dbt clone` from failing on Unity Catalog tables with a row filter or column mask, which can't be shallow-cloned; they now clone as a view over the deferred table that applies its policies for whoever queries it ([#1745](https://github.com/databricks/dbt-databricks/pull/1745))
 - Stop `dbt clone` from failing on materialized views with a row filter and streaming tables with a row filter or column mask ([#1744](https://github.com/databricks/dbt-databricks/pull/1744))
