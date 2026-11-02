@@ -1,3 +1,9 @@
+## dbt-databricks 1.13.1 (TBD)
+
+### Fixes
+
+- Wait for terminating all-purpose clusters before starting Python models, and report cluster startup failures promptly with the state message ([#1730](https://github.com/databricks/dbt-databricks/pull/1730) resolves [#1723](https://github.com/databricks/dbt-databricks/issues/1723))
+
 ## dbt-databricks 1.13.0 (Oct 29, 2026)
 
 ### Features
