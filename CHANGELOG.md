@@ -2,6 +2,7 @@
 
 ### Fixes
 
+- Make `is_string()`, `is_number()`, `is_integer()`, `is_float()`, and `is_numeric()` recognize Databricks column types such as `string`, `int`, `tinyint`, and `decimal(p,s)` ([#1726](https://github.com/databricks/dbt-databricks/pull/1726) resolves [#1380](https://github.com/databricks/dbt-databricks/issues/1380))
 - Hide credential-like keys nested inside `session_properties` from `dbt debug` connection output ([#1728](https://github.com/databricks/dbt-databricks/pull/1728) resolves [#1724](https://github.com/databricks/dbt-databricks/issues/1724))
 - Fix unit tests and direct `get_columns_in_query` calls failing with `PARSE_SYNTAX_ERROR` when a model's SQL ends with a semicolon ([#1729](https://github.com/databricks/dbt-databricks/pull/1729) resolves [#1725](https://github.com/databricks/dbt-databricks/issues/1725))
 
