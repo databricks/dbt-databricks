@@ -15,7 +15,8 @@
     {% if cached_relation is not none %}
       {% do adapter.cache_dropped(cached_relation) %}
     {% endif %}
-    {% do adapter.cache_added(target_relation) %}
+    {#- Same entry dbt-core adds for the materialization's relations after the model. -#}
+    {% do adapter.cache_added(target_relation.incorporate(dbt_created=True)) %}
   {% endif %}
 {% endmacro %}
 
@@ -28,6 +29,13 @@
   {#- CREATE OR REPLACE VIEW WITH METRICS is same-type only; UC lists metric views as METRIC_VIEW. -#}
   {% if target_relation.is_metric_view and existing_relation.is_metric_view %}
     {{ return(get_replace_metric_view_sql(target_relation, sql)) }}
+  {% endif %}
+
+  {% if existing_relation.is_materialized_view and target_relation.is_materialized_view %}
+    {% set compatibility_rebuild = get_mv_compatibility_rebuild_sql(existing_relation, target_relation, sql) %}
+    {% if compatibility_rebuild is not none %}
+      {{ return(compatibility_rebuild) }}
+    {% endif %}
   {% endif %}
 
   {% set safe_replace = config.get('use_safer_relation_operations', False) | as_bool  %}
