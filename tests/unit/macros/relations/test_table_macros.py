@@ -1,6 +1,15 @@
+from unittest.mock import Mock
+
 import pytest
+from dbt_common.contracts.constraints import ConstraintType
 
 from dbt.adapters.databricks import constants
+from dbt.adapters.databricks.constraints import (
+    ForeignKeyConstraint,
+    PrimaryKeyConstraint,
+    synthesize_constraint_name,
+)
+from dbt.adapters.databricks.relation import DatabricksRelation
 from tests.unit.macros.base import MacroTestBase
 from tests.unit.utils import unity_relation
 
@@ -381,3 +390,82 @@ class TestFileFormatClause(MacroTestBase):
         sql = self.run_macro(template_bundle.template, "file_format_clause", catalog_relation)
 
         assert sql == "using delta"
+
+
+def _unnamed_pk():
+    return PrimaryKeyConstraint(type=ConstraintType.primary_key, columns=["id"])
+
+
+def _unnamed_self_fk():
+    return ForeignKeyConstraint(
+        type=ConstraintType.foreign_key, columns=["parent_id"], to="p", to_columns=["id"]
+    )
+
+
+def _named_fk():
+    return ForeignKeyConstraint(
+        type=ConstraintType.foreign_key,
+        name="fk_named",
+        columns=["other_id"],
+        to="o",
+        to_columns=["id"],
+    )
+
+
+class TestSafeRelationReplace(MacroTestBase):
+    @pytest.fixture(scope="class")
+    def template_name(self) -> str:
+        return "replace.sql"
+
+    @pytest.fixture(scope="class")
+    def macro_folders_to_load(self) -> list:
+        return ["macros/relations/table", "macros/relations", "macros"]
+
+    def test_staged_keys_renamed_to_final_names_after_backup_dropped(self, template_bundle):
+        context = template_bundle.context
+        statements = []
+
+        def statement(name, caller):
+            statements.append(self.clean_sql(caller()))
+            return ""
+
+        context["statement"] = statement
+        key_constraints = [_unnamed_pk(), _unnamed_self_fk(), _named_fk()]
+        context["create_table_at"] = Mock(return_value="")
+        context["get_model_key_constraints"] = Mock(return_value=key_constraints)
+        context["get_drop_backup_sql"] = Mock(return_value="drop backup")
+        for macro in ("create_backup", "make_backup_relation", "drop_relation_if_exists"):
+            context[macro] = Mock(return_value="")
+        context["this"] = DatabricksRelation.create(
+            database="c", schema="s", identifier="My_Model", type="table"
+        )
+        staging = DatabricksRelation.create(
+            database="c", schema="s", identifier="My_Model__dbt_stg", type="table", is_staging=True
+        )
+        intermediate = Mock()
+
+        self.run_macro_raw(
+            template_bundle.template,
+            "safe_relation_replace",
+            template_bundle.relation,
+            staging,
+            intermediate,
+            "select 1",
+        )
+
+        context["create_table_at"].assert_called_once_with(staging, intermediate, "select 1")
+        stg_pk = synthesize_constraint_name(_unnamed_pk(), "My_Model__dbt_stg")
+        stg_fk = synthesize_constraint_name(_unnamed_self_fk(), "My_Model__dbt_stg")
+        stg_named = synthesize_constraint_name(_named_fk(), "My_Model__dbt_stg")
+        pk = synthesize_constraint_name(_unnamed_pk(), "My_Model")
+        fk = synthesize_constraint_name(_unnamed_self_fk(), "My_Model")
+        target = "alter table `c`.`s`.`my_model`"
+        assert statements == [
+            "drop backup",
+            f"{target} drop constraint if exists {stg_fk}",
+            f"{target} drop constraint if exists {stg_named}",
+            f"{target} drop constraint if exists {stg_pk}",
+            f"{target} add constraint {pk} primary key (id)",
+            f"{target} add constraint {fk} foreign key (parent_id) references p (id)",
+            f"{target} add constraint fk_named foreign key (other_id) references o (id)",
+        ]
