@@ -33,9 +33,7 @@ class TestStreamingTableConfig:
                 ],
             ),
             "show_tblproperties": fixtures.gen_tblproperties([["prop", "1"], ["other", "other"]]),
-            "information_schema.tags": Table(
-                rows=[["a", "b"], ["c", "d"]], column_names=["tag_name", "tag_value"]
-            ),
+            "table_tags": {"a": "b", "c": "d"},
             "information_schema.column_tags": Table(
                 rows=[["col_a", "classification", "internal"]],
                 column_names=["column_name", "tag_name", "tag_value"],
