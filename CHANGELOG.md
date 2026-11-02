@@ -1,5 +1,9 @@
 ## dbt-databricks 1.13.1 (TBD)
 
+### Features
+
+- Accept `use_materialization_v2` as a model config, so a project or an individual table or incremental model can choose between the atomic `CREATE OR REPLACE TABLE … AS SELECT` path and the create-then-insert path; models that don't set it follow the `use_materialization_v2` behavior flag, and view models ignore it ([#1718](https://github.com/databricks/dbt-databricks/pull/1718))
+
 ### Fixes
 
 - Make the new table visible to the model's post-hooks and the rest of the run when a table or incremental model replaces a view, materialized view, or streaming table ([#1708](https://github.com/databricks/dbt-databricks/pull/1708))
