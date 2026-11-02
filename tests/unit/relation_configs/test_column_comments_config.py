@@ -45,9 +45,23 @@ class TestColumnCommentsProcessor:
     def test_from_relation_config__with_persist(self):
         model = Mock()
         model.columns = {"col1": {"description": "test comment"}}
-        model.config.persist_docs = {"relation": True}
+        model.config.persist_docs = {"columns": True}
         config = ColumnCommentsProcessor.from_relation_config(model)
         assert config == ColumnCommentsConfig(comments={"col1": "test comment"}, persist=True)
+
+    def test_from_relation_config__columns_true_relation_false(self):
+        model = Mock()
+        model.columns = {"col1": {"description": "test comment"}}
+        model.config.persist_docs = {"columns": True, "relation": False}
+        config = ColumnCommentsProcessor.from_relation_config(model)
+        assert config == ColumnCommentsConfig(comments={"col1": "test comment"}, persist=True)
+
+    def test_from_relation_config__relation_true_columns_false(self):
+        model = Mock()
+        model.columns = {"col1": {"description": "test comment"}}
+        model.config.persist_docs = {"relation": True, "columns": False}
+        config = ColumnCommentsProcessor.from_relation_config(model)
+        assert config == ColumnCommentsConfig(comments={"col1": "test comment"}, persist=False)
 
 
 class TestColumnCommentsConfig:
@@ -102,3 +116,11 @@ class TestColumnCommentsConfig:
         assert diff == ColumnCommentsConfig(
             comments={"`account_id`": "New Account ID"}, persist=True
         )
+
+    def test_get_diff__skips_missing_column(self):
+        config = ColumnCommentsConfig(
+            comments={"col1": "new comment", "col2": "comment for missing column"}, persist=True
+        )
+        other = ColumnCommentsConfig(comments={"col1": "old comment"})
+        diff = config.get_diff(other)
+        assert diff == ColumnCommentsConfig(comments={"`col1`": "new comment"}, persist=True)

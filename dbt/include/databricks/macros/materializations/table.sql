@@ -10,7 +10,7 @@
   {% set target_relation = this.incorporate(type='table') %}
   {% set compiled_code = adapter.clean_sql(compiled_code) %}
 
-  {% if adapter.get_behavior_flag_no_warn('use_materialization_v2') %}
+  {% if use_materialization_v2() %}
     {% set intermediate_relation = make_intermediate_relation(target_relation) %}
     {% set staging_relation = make_staging_relation(target_relation) %}
 
@@ -24,13 +24,22 @@
     {% else %}
       {% if safe_create and existing_relation.can_be_renamed %}
         {{ safe_relation_replace(existing_relation, staging_relation, intermediate_relation, compiled_code) }}
+        {% do cache_replaced_relation(target_relation) %}
       {% else %}
-        {% if existing_relation and (existing_relation.is_shallow_clone or existing_relation.type != 'table' or not (existing_relation.can_be_replaced and adapter.resolve_file_format(config) in ('delta', 'iceberg'))) -%}
+        {% set drop_existing = existing_relation.is_shallow_clone or existing_relation.type != 'table' or not (existing_relation.can_be_replaced and adapter.resolve_file_format(config) in ('delta', 'iceberg')) %}
+        {% if drop_existing -%}
           {{ adapter.drop_relation(existing_relation) }}
+        {%- else -%}
+          {{ unset_tags_on_removed_columns(existing_relation, adapter.get_columns_in_relation(intermediate_relation) | map(attribute='name') | list) }}
         {%- endif %}
         {{ create_table_at(target_relation, intermediate_relation, compiled_code) }}
+        {% if drop_existing %}
+          {% do cache_replaced_relation(target_relation) %}
+        {% endif %}
       {% endif %}
     {% endif %}
+
+    {% do validate_persist_doc_columns(target_relation, model) %}
 
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
     {{ apply_grants(target_relation, grant_config, should_revoke) }}
@@ -42,12 +51,15 @@
     
     {{ run_post_hooks() }}
   {% else %}
-    {{ run_hooks(pre_hooks) }}
+    {{ run_pre_hooks() }}
     -- setup: if the target relation already exists, drop it
     -- in case if the existing and future table is delta or iceberg, we want to do a
     -- create or replace table instead of dropping, so we don't have the table unavailable
-    {% if existing_relation and (existing_relation.is_shallow_clone or existing_relation.type != 'table' or not (existing_relation.can_be_replaced and adapter.resolve_file_format(config) in ('delta', 'iceberg'))) -%}
+    {% set drop_existing = existing_relation and (existing_relation.is_shallow_clone or existing_relation.type != 'table' or not (existing_relation.can_be_replaced and adapter.resolve_file_format(config) in ('delta', 'iceberg'))) %}
+    {% if drop_existing -%}
       {{ adapter.drop_relation(existing_relation) }}
+    {%- elif existing_relation and language == 'sql' -%}
+      {{ unset_tags_on_removed_columns(existing_relation, get_columns_in_query(compiled_code)) }}
     {%- endif %}
 
     -- build model
@@ -55,6 +67,9 @@
     {%- call statement('main', language=language) -%}
       {{ create_table_as(False, target_relation, compiled_code, language) }}
     {%- endcall -%}
+    {% if drop_existing %}
+      {% do cache_replaced_relation(target_relation) %}
+    {% endif %}
 
     {% set should_revoke = should_revoke(existing_relation, full_refresh_mode=True) %}
     {% do apply_grants(target_relation, grant_config, should_revoke) %}
@@ -74,7 +89,7 @@
 
     {% do optimize(target_relation) %}
 
-    {{ run_hooks(post_hooks) }}
+    {{ run_post_hooks() }}
 
   {% endif %}
   {{ return({'relations': [target_relation]})}}

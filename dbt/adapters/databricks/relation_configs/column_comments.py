@@ -24,7 +24,9 @@ class ColumnCommentsConfig(DatabricksComponentConfig):
             other_comments_lower = {k.lower(): v for k, v in other.comments.items()}
 
             for column_name, comment in self.comments.items():
-                # Use case-insensitive comparison for column names
+                # Missing columns are reported post-build.
+                if column_name.lower() not in other_comments_lower:
+                    continue
                 other_comment = other_comments_lower.get(column_name.lower())
                 if comment != other_comment:
                     column_name = f"`{column_name}`"
@@ -53,7 +55,7 @@ class ColumnCommentsProcessor(DatabricksComponentProcessor[ColumnCommentsConfig]
         columns = getattr(relation_config, "columns", {})
         persist = False
         if relation_config.config:
-            persist = relation_config.config.persist_docs.get("relation") or False
+            persist = relation_config.config.persist_docs.get("columns") or False
         comments = {}
         for column_name, column in columns.items():
             if hasattr(column, "description"):
