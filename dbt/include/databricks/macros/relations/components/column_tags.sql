@@ -14,9 +14,9 @@
     tag_name,
     tag_value
   FROM `system`.`information_schema`.`column_tags`
-  WHERE catalog_name = '{{ relation.database|lower }}'
-    AND schema_name = '{{ relation.schema|lower }}'
-    AND table_name = '{{ relation.identifier|lower }}';
+  WHERE catalog_name = '{{ escape_relation_literal(relation.database|lower) }}'
+    AND schema_name = '{{ escape_relation_literal(relation.schema|lower) }}'
+    AND table_name = '{{ escape_relation_literal(relation.identifier|lower) }}';
 {%- endmacro -%}
 
 {% macro apply_column_tags(relation, column_tags) -%}

@@ -117,3 +117,70 @@ class TestFetchConstraintsMacros(MacroTestBase):
             ORDER BY kcu.ordinal_position;
         """
         self.assert_sql_equal(sql, expected)
+
+    def test_fetch_foreign_key_constraints_sql_escapes_special_characters(self, template_bundle):
+        template_bundle.relation.database = "cat'a\\log"
+        template_bundle.relation.schema = "sch'e\\ma"
+        template_bundle.relation.identifier = "orders'eu\\test"
+        sql = self.render_bundle(template_bundle, "fetch_foreign_key_constraints_sql")
+        assert "where kcu.table_catalog = 'cat\\'a\\\\log'" in sql
+        assert "and kcu.table_schema = 'sch\\'e\\\\ma'" in sql
+        assert "and kcu.table_name = 'orders\\'eu\\\\test'" in sql
+        assert "where table_catalog = 'cat\\'a\\\\log'" in sql
+        assert "and table_schema = 'sch\\'e\\\\ma'" in sql
+        assert "and table_name = 'orders\\'eu\\\\test'" in sql
+
+    def test_fetch_non_null_constraint_columns_sql(self, template_bundle):
+        sql = self.render_bundle(template_bundle, "fetch_non_null_constraint_columns_sql")
+        expected = """
+            SELECT column_name
+            FROM `some_database`.`information_schema`.`columns`
+            WHERE table_catalog = 'some_database'
+              AND table_schema = 'some_schema'
+              AND table_name = 'some_table'
+              AND is_nullable = 'NO';
+        """
+        self.assert_sql_equal(sql, expected)
+
+    def test_fetch_non_null_constraint_columns_sql_escapes_special_characters(
+        self, template_bundle
+    ):
+        template_bundle.relation.database = "cat'a\\log"
+        template_bundle.relation.schema = "sch'e\\ma"
+        template_bundle.relation.identifier = "orders'eu\\test"
+        sql = self.render_bundle(template_bundle, "fetch_non_null_constraint_columns_sql")
+        assert "where table_catalog = 'cat\\'a\\\\log'" in sql
+        assert "and table_schema = 'sch\\'e\\\\ma'" in sql
+        assert "and table_name = 'orders\\'eu\\\\test'" in sql
+
+    def test_fetch_primary_key_constraints_sql(self, template_bundle):
+        sql = self.render_bundle(template_bundle, "fetch_primary_key_constraints_sql")
+        expected = """
+            SELECT kcu.constraint_name, kcu.column_name
+            FROM `some_database`.information_schema.key_column_usage kcu
+            WHERE kcu.table_catalog = 'some_database'
+              AND kcu.table_schema = 'some_schema'
+              AND kcu.table_name = 'some_table'
+              AND kcu.constraint_name = (
+                SELECT constraint_name
+                FROM `some_database`.information_schema.table_constraints
+                WHERE table_catalog = 'some_database'
+                  AND table_schema = 'some_schema'
+                  AND table_name = 'some_table'
+                  AND constraint_type = 'PRIMARY KEY'
+              )
+            ORDER BY kcu.ordinal_position;
+        """
+        self.assert_sql_equal(sql, expected)
+
+    def test_fetch_primary_key_constraints_sql_escapes_special_characters(self, template_bundle):
+        template_bundle.relation.database = "cat'a\\log"
+        template_bundle.relation.schema = "sch'e\\ma"
+        template_bundle.relation.identifier = "orders'eu\\test"
+        sql = self.render_bundle(template_bundle, "fetch_primary_key_constraints_sql")
+        assert "where kcu.table_catalog = 'cat\\'a\\\\log'" in sql
+        assert "and kcu.table_schema = 'sch\\'e\\\\ma'" in sql
+        assert "and kcu.table_name = 'orders\\'eu\\\\test'" in sql
+        assert "where table_catalog = 'cat\\'a\\\\log'" in sql
+        assert "and table_schema = 'sch\\'e\\\\ma'" in sql
+        assert "and table_name = 'orders\\'eu\\\\test'" in sql
