@@ -18,6 +18,10 @@
 - Hide credential-like keys nested inside `session_properties` from `dbt debug` connection output ([#1728](https://github.com/databricks/dbt-databricks/pull/1728) resolves [#1724](https://github.com/databricks/dbt-databricks/issues/1724))
 - Fix unit tests and direct `get_columns_in_query` calls failing with `PARSE_SYNTAX_ERROR` when a model's SQL ends with a semicolon ([#1729](https://github.com/databricks/dbt-databricks/pull/1729) resolves [#1725](https://github.com/databricks/dbt-databricks/issues/1725))
 
+### Under the Hood
+
+- Raise the `databricks-sql-connector` ceiling to `<4.8.1` and pin it to 4.8.0, pulling in `thrift` 0.25.0 and `oauthlib` 4.0.1 for their security fixes ([#PR_NUMBER](https://github.com/databricks/dbt-databricks/pull/PR_NUMBER))
+
 ## dbt-databricks 1.13.0 (Oct 29, 2026)
 
 ### Features
