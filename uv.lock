@@ -470,17 +470,18 @@ wheels = [
 
 [[package]]
 name = "databricks-sdk"
-version = "0.117.0"
+version = "0.159.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "certifi" },
     { name = "google-auth" },
     { name = "protobuf" },
     { name = "requests" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/95/86/fe149c523a9181deb3a90ae4e83708f54a6ee80c40ca392cf66ffdf425df/databricks_sdk-0.117.0.tar.gz", hash = "sha256:30a6fc21a8f9c4a41830c43332ae63b38c3679a83ac1bda4734ce7ced114faf1", size = 989404, upload-time = "2026-06-11T18:19:29.034Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e0/0d/d778f17a51b1fefe10343411e1a7ba130a5ad9b52a3eb338d727218dcf90/databricks_sdk-0.159.0.tar.gz", hash = "sha256:dfc6c2d201783021c846dacd93a9b074bc6e5240e528f7e4224c2f2e1b19e369", size = 1203491, upload-time = "2026-11-02T04:24:48.007Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/92/4d/3e28a5a1ae9aa42237bd0f4e6b34867b554c046a0f3e7c2ef49fa74800f6/databricks_sdk-0.117.0-py3-none-any.whl", hash = "sha256:bafd588c067ee353c905e56cd2eb37c7eca7a56a4c1b57656621b77208c32f86", size = 936854, upload-time = "2026-06-11T18:19:27.395Z" },
+    { url = "https://files.pythonhosted.org/packages/67/a9/54de1d628a90fa668069a1b62a16960949b382c770c9d9a66aea5e767144/databricks_sdk-0.159.0-py3-none-any.whl", hash = "sha256:1a244ccad5531ee1c8874eab38f1fdd31517991d73a76c302895d6e2c7ab9662", size = 1145148, upload-time = "2026-11-02T04:24:46.288Z" },
 ]
 
 [[package]]
@@ -641,7 +642,7 @@ test = [
 requires-dist = [
     { name = "certifi", specifier = ">=2026.10.23" },
     { name = "click", specifier = ">=8.2.0,<9.0.0" },
-    { name = "databricks-sdk", specifier = ">=0.68.0,<0.118.0" },
+    { name = "databricks-sdk", specifier = ">=0.68.0,<0.160.0" },
     { name = "databricks-sql-connector", extras = ["pyarrow"], specifier = ">=4.2.2,<4.4.1" },
     { name = "dbt-adapters", specifier = ">=1.22.0,<1.25.0" },
     { name = "dbt-common", specifier = ">=1.37.0,<1.39.0" },
