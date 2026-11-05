@@ -11,6 +11,10 @@ from tests.functional.adapter.functions.fixtures import (
     DATABRICKS_MULTI_ARG_PYTHON_UDF_YML,
     DATABRICKS_PYTHON_UDF_BODY,
     DATABRICKS_PYTHON_UDF_YML,
+    DOCUMENTED_PYTHON_UDF,
+    DOCUMENTED_PYTHON_UDF_YML,
+    DOCUMENTED_SQL_UDF,
+    DOCUMENTED_SQL_UDF_YML,
     PYTHON_UDF_V1,
     PYTHON_UDF_V2,
     PYTHON_UDF_YML_V1,
@@ -212,3 +216,68 @@ class TestDatabricksMultiArgPythonUDF(UDFsBasic):
         assert len(result.results) == 1
         select_value = int(result.results[0].agate_table.rows[0].values()[0])
         assert select_value == 100, f"Expected 100, got {select_value}"
+
+
+def get_function_docs(project, name):
+    routine = project.run_sql(
+        f"""
+        SELECT comment FROM {project.database}.information_schema.routines
+        WHERE routine_schema = '{project.test_schema}' AND routine_name = '{name}'
+        """,
+        fetch="one",
+    )
+    parameters = project.run_sql(
+        f"""
+        SELECT parameter_name, parameter_default, comment
+        FROM {project.database}.information_schema.parameters
+        WHERE specific_schema = '{project.test_schema}' AND specific_name = '{name}'
+        ORDER BY ordinal_position
+        """,
+        fetch="all",
+    )
+    return routine[0], [tuple(row) for row in parameters]
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestDatabricksSqlUDFDocsAndDefaults:
+    @pytest.fixture(scope="class")
+    def functions(self):
+        return {
+            "price_for_size.sql": DOCUMENTED_SQL_UDF,
+            "price_for_size.yml": DOCUMENTED_SQL_UDF_YML,
+        }
+
+    def test_sql_udf_docs_and_defaults(self, project):
+        result = run_dbt(["build"])
+        assert result.results[0].status == RunStatus.Success
+
+        result = run_dbt(["show", "--inline", "SELECT {{ function('price_for_size') }}(100)"])
+        assert int(result.results[0].agate_table.rows[0].values()[0]) == 200
+
+        comment, parameters = get_function_docs(project, "price_for_size")
+        assert comment == "Multiplies a price by a size factor"
+        assert parameters == [
+            ("price", None, "The price of the standard item"),
+            ("factor", "2", "Size multiplier"),
+        ]
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestDatabricksPythonUDFDocsAndDefaults:
+    @pytest.fixture(scope="class")
+    def functions(self):
+        return {
+            "price_for_size.py": DOCUMENTED_PYTHON_UDF,
+            "price_for_size.yml": DOCUMENTED_PYTHON_UDF_YML,
+        }
+
+    def test_python_udf_docs_ignore_default(self, project):
+        result = run_dbt(["build"])
+        assert result.results[0].status == RunStatus.Success
+
+        comment, parameters = get_function_docs(project, "price_for_size")
+        assert comment == "Multiplies a price by a size factor"
+        assert parameters == [
+            ("price", None, "The price of the standard item"),
+            ("factor", None, "Size multiplier"),
+        ]

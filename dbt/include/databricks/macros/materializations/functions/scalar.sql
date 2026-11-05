@@ -1,7 +1,36 @@
+{% macro databricks__formatted_scalar_function_args_sql() %}
+    {%- set is_python = model.language == 'python' -%}
+    {%- set persist_arg_docs = config.persist_column_docs() -%}
+    {%- set args = [] -%}
+    {%- for arg in model.arguments -%}
+        {%- set parts = [arg.name ~ ' ' ~ arg.data_type] -%}
+        {%- set default_value = arg.get('default_value') -%}
+        {%- if default_value is not none -%}
+            {%- if is_python -%}
+                {%- do exceptions.warn("Found `default_value` on argument `" ~ arg.name ~ "` of Python function `" ~ model.name ~ "`. Databricks supports DEFAULT only for SQL functions, so it will be ignored") -%}
+            {%- else -%}
+                {%- do parts.append('DEFAULT ' ~ default_value) -%}
+            {%- endif -%}
+        {%- endif -%}
+        {%- if persist_arg_docs and arg.get('description') -%}
+            {%- do parts.append(get_create_sql_comment(arg.get('description')) | trim) -%}
+        {%- endif -%}
+        {%- do args.append(parts | join(' ')) -%}
+    {%- endfor -%}
+    {{ args | join(', ') }}
+{% endmacro %}
+
+{% macro databricks__function_comment_sql() %}
+    {%- if config.persist_relation_docs() and model.description -%}
+        {{ get_create_sql_comment(model.description) }}
+    {%- endif -%}
+{% endmacro %}
+
 {% macro databricks__scalar_function_create_replace_signature_sql(target_relation) %}
     CREATE OR REPLACE FUNCTION {{ target_relation.render() }} ({{ formatted_scalar_function_args_sql()}})
     RETURNS {{ model.returns.data_type }}
     LANGUAGE SQL
+    {{ databricks__function_comment_sql() }}
 {% endmacro %}
 
 {% macro databricks__scalar_function_body_sql() %}
@@ -14,6 +43,7 @@
     CREATE OR REPLACE FUNCTION {{ target_relation.render() }} ({{ formatted_scalar_function_args_sql() }})
     RETURNS {{ model.returns.data_type }}
     LANGUAGE PYTHON
+    {{ databricks__function_comment_sql() }}
     AS
 {% endmacro %}
 
