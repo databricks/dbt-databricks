@@ -20,7 +20,7 @@
 
 ### Under the Hood
 
-- Raise the `databricks-sql-connector` ceiling to `<4.8.1` and pin it to 4.8.0, pulling in `thrift` 0.25.0 and `oauthlib` 4.0.1 for their security fixes ([#PR_NUMBER](https://github.com/databricks/dbt-databricks/pull/PR_NUMBER))
+- Raise the `databricks-sql-connector` ceiling to `<4.8.1` and pin it to 4.8.0, pulling in `oauthlib` 4.0.1 for its security fixes and `thrift` 0.25.0 ([#1763](https://github.com/databricks/dbt-databricks/pull/1763))
 
 ## dbt-databricks 1.13.0 (Oct 29, 2026)
 
