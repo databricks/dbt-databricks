@@ -110,6 +110,134 @@ class TestTblPropertiesProcessor:
         # Should not have UniForm properties without explicit use_managed_iceberg=False
         assert spec == TblPropertiesConfig(tblproperties={})
 
+    def test_from_model_node__snapshot_default_columns(self):
+        model = Mock()
+        model.config.extra = {
+            "materialized": "snapshot",
+            "file_format": constants.DELTA_FILE_FORMAT,
+        }
+        spec = TblPropertiesProcessor.from_relation_config(model)
+        assert spec == TblPropertiesConfig(
+            tblproperties={
+                "delta.dataSkippingStatsColumns": (
+                    "dbt_scd_id, dbt_updated_at, dbt_valid_from, dbt_valid_to"
+                )
+            }
+        )
+
+    def test_from_model_node__snapshot_with_data_columns(self):
+        model = Mock()
+        data_cols = [f"c{i}" for i in range(1, 41)]
+        model.columns = {c: {} for c in data_cols}
+        model.config.extra = {
+            "materialized": "snapshot",
+            "file_format": constants.DELTA_FILE_FORMAT,
+        }
+        spec = TblPropertiesProcessor.from_relation_config(model)
+        # Leading 32 columns + 4 snapshot meta columns
+        expected_cols = [f"c{i}" for i in range(1, 33)] + [
+            "dbt_scd_id",
+            "dbt_updated_at",
+            "dbt_valid_from",
+            "dbt_valid_to",
+        ]
+        assert spec == TblPropertiesConfig(
+            tblproperties={"delta.dataSkippingStatsColumns": ", ".join(expected_cols)}
+        )
+
+    def test_from_model_node__snapshot_respects_num_indexed_cols(self):
+        model = Mock()
+        data_cols = [f"c{i}" for i in range(1, 20)]
+        model.columns = {c: {} for c in data_cols}
+        model.config.extra = {
+            "materialized": "snapshot",
+            "file_format": constants.DELTA_FILE_FORMAT,
+            "tblproperties": {"delta.dataSkippingNumIndexedCols": "5"},
+        }
+        spec = TblPropertiesProcessor.from_relation_config(model)
+        expected_cols = [f"c{i}" for i in range(1, 6)] + [
+            "dbt_scd_id",
+            "dbt_updated_at",
+            "dbt_valid_from",
+            "dbt_valid_to",
+        ]
+        assert spec == TblPropertiesConfig(
+            tblproperties={
+                "delta.dataSkippingNumIndexedCols": "5",
+                "delta.dataSkippingStatsColumns": ", ".join(expected_cols),
+            }
+        )
+
+    def test_from_model_node__snapshot_custom_column_names(self):
+        model = Mock()
+        model.config.extra = {
+            "materialized": "snapshot",
+            "file_format": constants.DELTA_FILE_FORMAT,
+            "snapshot_table_column_names": {
+                "dbt_scd_id": "_scd_id",
+                "dbt_updated_at": "_updated_at",
+                "dbt_valid_from": "start_date",
+                "dbt_valid_to": "end_date",
+                "dbt_is_deleted": "is_deleted",
+            },
+            "hard_deletes": "new_record",
+        }
+        spec = TblPropertiesProcessor.from_relation_config(model)
+        assert spec == TblPropertiesConfig(
+            tblproperties={
+                "delta.dataSkippingStatsColumns": (
+                    "_scd_id, _updated_at, start_date, end_date, is_deleted"
+                )
+            }
+        )
+
+    def test_from_model_node__snapshot_hard_deletes_new_record(self):
+        model = Mock()
+        model.config.extra = {
+            "materialized": "snapshot",
+            "file_format": constants.DELTA_FILE_FORMAT,
+            "hard_deletes": "new_record",
+        }
+        spec = TblPropertiesProcessor.from_relation_config(model)
+        assert spec == TblPropertiesConfig(
+            tblproperties={
+                "delta.dataSkippingStatsColumns": (
+                    "dbt_scd_id, dbt_updated_at, dbt_valid_from, dbt_valid_to, dbt_is_deleted"
+                )
+            }
+        )
+
+    def test_from_model_node__snapshot_supplements_user_data_skipping_columns(self):
+        model = Mock()
+        model.config.extra = {
+            "materialized": "snapshot",
+            "file_format": constants.DELTA_FILE_FORMAT,
+            "tblproperties": {
+                "delta.dataSkippingStatsColumns": "dbt_valid_to, custom_col1, custom_col2",
+                "custom_prop": "val",
+            },
+        }
+        spec = TblPropertiesProcessor.from_relation_config(model)
+        assert spec == TblPropertiesConfig(
+            tblproperties={
+                "custom_prop": "val",
+                "delta.dataSkippingStatsColumns": (
+                    "dbt_valid_to, custom_col1, custom_col2, "
+                    "dbt_scd_id, dbt_updated_at, dbt_valid_from"
+                ),
+            }
+        )
+
+    def test_from_model_node__snapshot_non_delta_ignored(self):
+        model = Mock()
+        model.config.extra = {
+            "materialized": "snapshot",
+            "file_format": constants.HUDI_FILE_FORMAT,
+            "tblproperties": {"custom_prop": "val"},
+        }
+        spec = TblPropertiesProcessor.from_relation_config(model)
+        assert spec == TblPropertiesConfig(tblproperties={"custom_prop": "val"})
+
 
 class TestTblPropertiesConfig:
     def test_get_diff__empty_and_some_exist(self):
