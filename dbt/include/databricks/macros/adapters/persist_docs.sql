@@ -32,6 +32,11 @@
 {% endmacro %}
 
 {% macro databricks__persist_docs(relation, model, for_relation, for_columns) -%}
+  {#-- Function comments are set inside CREATE FUNCTION; Databricks has no COMMENT ON FUNCTION. --#}
+  {%- if relation.type == 'function' -%}
+    {%- set for_relation = false -%}
+    {%- set for_columns = false -%}
+  {%- endif -%}
   {%- if for_relation and config.persist_relation_docs() and model.description %}
     {{ run_query_as(alter_relation_comment_sql(relation, model.description), 'alter_relation_comment', fetch_result=False) }}
   {% endif %}

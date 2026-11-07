@@ -82,3 +82,54 @@ functions:
     returns:
       data_type: float
 """
+
+DOCUMENTED_SQL_UDF = """
+SELECT price * factor
+"""
+
+DOCUMENTED_SQL_UDF_YML = """
+functions:
+  - name: price_for_size
+    description: Multiplies a price by a size factor
+    config:
+      persist_docs:
+        relation: true
+        columns: true
+    arguments:
+      - name: price
+        data_type: float
+        description: The price of the standard item
+      - name: factor
+        data_type: int
+        description: Size multiplier
+        default_value: 2
+    returns:
+      data_type: float
+"""
+
+DOCUMENTED_PYTHON_UDF = """
+def price_for_size(price, factor):
+    return price * factor
+
+return price_for_size(price, factor)
+"""
+
+DOCUMENTED_PYTHON_UDF_YML = """
+functions:
+  - name: price_for_size
+    description: Multiplies a price by a size factor
+    config:
+      persist_docs:
+        relation: true
+        columns: true
+    arguments:
+      - name: price
+        data_type: float
+        description: The price of the standard item
+      - name: factor
+        data_type: int
+        description: Size multiplier
+        default_value: 2
+    returns:
+      data_type: float
+"""
