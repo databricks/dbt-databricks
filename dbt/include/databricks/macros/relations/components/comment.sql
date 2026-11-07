@@ -1,6 +1,10 @@
+{%- macro escape_comment(comment) -%}
+  {#-- escape backslashes first so they cannot merge with the apostrophe escape below --#}
+  {{ return(comment | replace("\\", "\\\\") | replace("'", "\\'")) }}
+{%- endmacro -%}
+
 {%- macro get_create_sql_comment(comment) -%}
 {% if comment is string -%}
-  {#-- escape backslashes first so they cannot merge with the apostrophe escape below --#}
-  COMMENT '{{ comment | replace("\\", "\\\\") | replace("'", "\\'") }}'
+  COMMENT '{{ escape_comment(comment) }}'
 {%- endif -%}
 {%- endmacro -%}
