@@ -17,6 +17,7 @@
 - Make `is_string()`, `is_number()`, `is_integer()`, `is_float()`, and `is_numeric()` recognize Databricks column types such as `string`, `int`, `tinyint`, and `decimal(p,s)` ([#1726](https://github.com/databricks/dbt-databricks/pull/1726) resolves [#1380](https://github.com/databricks/dbt-databricks/issues/1380))
 - Hide credential-like keys nested inside `session_properties` from `dbt debug` connection output ([#1728](https://github.com/databricks/dbt-databricks/pull/1728) resolves [#1724](https://github.com/databricks/dbt-databricks/issues/1724))
 - Fix unit tests and direct `get_columns_in_query` calls failing with `PARSE_SYNTAX_ERROR` when a model's SQL ends with a semicolon ([#1729](https://github.com/databricks/dbt-databricks/pull/1729) resolves [#1725](https://github.com/databricks/dbt-databricks/issues/1725))
+- Escape backslashes in model, column, and seed descriptions written as SQL comments, so a description like `^\d+` or `C:\tmp` is stored as written and a trailing backslash no longer leaves the comment literal unterminated ([#1709](https://github.com/databricks/dbt-databricks/pull/1709))
 
 ## dbt-databricks 1.13.0 (Oct 29, 2026)
 
@@ -64,7 +65,6 @@
 - Emit constraint `ALTER` statements in a stable order on incremental runs instead of an order that varies between runs ([#1698](https://github.com/databricks/dbt-databricks/pull/1698))
 - Stop dropping and re-adding a `custom` constraint that declares a primary key on every incremental run, which also dropped foreign keys that reference it ([#1700](https://github.com/databricks/dbt-databricks/pull/1700) resolves [#1699](https://github.com/databricks/dbt-databricks/issues/1699))
 - Make a replaced relation and its new type visible to the model's post-hooks and the rest of the run when a view, materialized view, streaming table, or metric view model replaces an existing relation ([#1704](https://github.com/databricks/dbt-databricks/pull/1704))
-- Escape backslashes in model, column, and seed descriptions written as SQL comments, so a description like `^\d+` or `C:\tmp` is stored as written and a trailing backslash no longer leaves the comment literal unterminated ([#1709](https://github.com/databricks/dbt-databricks/pull/1709))
 
 ### Under the Hood
 
