@@ -20,7 +20,7 @@ class TestV1IncrementalApplyConfigChangesFalseSkipsTagFetch(MaterializationV1Mix
             "metadata_fetch_incremental.sql": (
                 fixtures.metadata_fetch_incremental_skip_config_changes_sql
             ),
-            "schema.yml": fixtures.metadata_fetch_table_tags_schema,
+            "schema.yml": fixtures.metadata_fetch_column_tags_schema,
         }
 
     @pytest.fixture(scope="class")
@@ -28,9 +28,7 @@ class TestV1IncrementalApplyConfigChangesFalseSkipsTagFetch(MaterializationV1Mix
         return {"fail_if_tag_fetch_called.sql": fail_if_tag_and_column_tag_fetch_called_macros}
 
     def test_v1_incremental_skips_metadata_fetch_when_flag_false(self, project):
-        # First run creates the table; second run exercises the existing-relation merge path
-        # where get_relation_config would normally fire metadata queries.
-        # Tags are declared on the model, so without the flag the run would call fetch_tags
-        # and fail. The flag must bypass the entire get_relation_config call.
+        # If incremental_apply_config_changes=false is ignored, the second run reads column tags
+        # and fails in the fetch_column_tags guard.
         util.run_dbt(["run"])
         util.run_dbt(["run"])

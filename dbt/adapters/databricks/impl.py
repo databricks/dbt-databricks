@@ -81,6 +81,7 @@ from dbt.adapters.databricks.relation_configs.column_tags import (
     ColumnTagsConfig,
     ColumnTagsProcessor,
 )
+from dbt.adapters.databricks.relation_configs.constraints import ConstraintsProcessor
 from dbt.adapters.databricks.relation_configs.incremental import IncrementalTableConfig
 from dbt.adapters.databricks.relation_configs.materialized_view import (
     MaterializedViewConfig,
@@ -101,6 +102,7 @@ from dbt.adapters.databricks.spog.capabilities import (
     sdk_supports_workspace_id,
 )
 from dbt.adapters.databricks.spog.extract import extract_workspace_id
+from dbt.adapters.databricks.telemetry import hooks as telemetry_hooks
 from dbt.adapters.databricks.utils import (
     get_first_row,
     handle_missing_objects,
@@ -182,6 +184,17 @@ USE_DESCRIBE_AS_JSON_FOR_RELATION_METADATA = BehaviorFlag(
     ),
 )  # type: ignore[typeddict-item]
 
+USE_NON_TRANSACTIONAL_HOOKS = BehaviorFlag(
+    name="use_non_transactional_hooks",
+    default=False,
+    description=(
+        "Hooks configured with `transaction: false` (including `before_begin` and"
+        " `after_commit`) are being skipped. Databricks does not wrap models in a transaction;"
+        " enable this flag to run these hooks in their outside-transaction position without an"
+        " extra COMMIT."
+    ),
+)  # type: ignore[typeddict-item]
+
 
 class DatabricksRelationInfo(NamedTuple):
     table_name: str
@@ -209,7 +222,9 @@ class DatabricksConfig(AdapterConfig):
         default=None, metadata=MergeBehavior.Update.meta()
     )
     query_tags: Optional[str] = None
-    tblproperties: Optional[dict[str, str]] = None
+    tblproperties: Optional[dict[str, str]] = field(
+        default=None, metadata=MergeBehavior.Update.meta()
+    )
     zorder: Optional[Union[list[str], str]] = None
     skip_optimize: Optional[bool] = None
     unique_tmp_table_suffix: bool = False
@@ -225,6 +240,7 @@ class DatabricksConfig(AdapterConfig):
     use_safer_relation_operations: Optional[bool] = None
     incremental_apply_config_changes: Optional[bool] = None
     view_update_via_alter: Optional[bool] = None
+    use_materialization_v2: Optional[bool] = None
 
 
 def get_identifier_list_string(table_names: set[str]) -> str:
@@ -295,6 +311,8 @@ class DatabricksAdapter(SparkAdapter):
             self.get_behavior_flag_no_warn(USE_MANAGED_ICEBERG["name"])
         )
 
+        telemetry_hooks.on_adapter_init(self)
+
         # Warehouses always meet capability cutoffs at parse time; clusters keep the
         # conservative False until a real connection is available.
         # `_parse_replacements_` is injected by AdapterMeta, so mypy can't resolve it here.
@@ -340,6 +358,7 @@ class DatabricksAdapter(SparkAdapter):
             USE_MANAGED_ICEBERG,
             USE_CONCURRENT_MICROBATCH,
             USE_DESCRIBE_AS_JSON_FOR_RELATION_METADATA,
+            USE_NON_TRANSACTIONAL_HOOKS,
         ]
 
     def supports(self, capability: Capability) -> bool:
@@ -883,11 +902,11 @@ class DatabricksAdapter(SparkAdapter):
             )
             for relation, information in self._list_relations_with_information(schema_relation):
                 columns.extend(self._get_columns_for_catalog(relation, information))
-        # An empty input produces a 0-column table; force-typing absent columns
-        # would emit one RuntimeWarning per name. Skip the override in that case.
-        column_types = (
-            build_type_tester(self.CATALOG_TEXT_ONLY_COLUMNS) if columns else DEFAULT_TYPE_TESTER
-        )
+        # Rows omit None-valued keys, so a forced column can be absent from the table, and
+        # agate emits one RuntimeWarning per absent name. Only force the columns present.
+        present = {key for row in columns for key in row}
+        text_only = [col for col in self.CATALOG_TEXT_ONLY_COLUMNS if col in present]
+        column_types = build_type_tester(text_only) if text_only else DEFAULT_TYPE_TESTER
         return Table.from_object(columns, column_types=column_types)
 
     def _get_columns_for_catalog(  # type: ignore[override]
@@ -915,6 +934,14 @@ class DatabricksAdapter(SparkAdapter):
         # As intended - This method will error out if the behavior flag is missing.
         behavior_flag = getattr(self.behavior, behavior_flag_name)
         return behavior_flag.no_warn
+
+    def set_macro_resolver(self, macro_resolver: Any) -> None:
+        super().set_macro_resolver(macro_resolver)
+        telemetry_hooks.on_post_parse(self, macro_resolver)
+
+    def cleanup_connections(self) -> None:
+        telemetry_hooks.on_run_end(self)
+        super().cleanup_connections()
 
     @available.parse(lambda *a, **k: (None, None))
     @record_function(
@@ -1265,6 +1292,29 @@ class RelationAPIBase(ABC, Generic[DatabricksRelationConfig]):
         return cls.config_type().from_relation_config(relation_config)
 
     @classmethod
+    def _get_table_tags(
+        cls,
+        adapter: DatabricksAdapter,
+        relation: DatabricksRelation,
+    ) -> dict[str, str]:
+        if relation.is_hive_metastore():
+            raise DbtRuntimeError("Tags are only supported for Unity Catalog")
+
+        if relation.database is None or relation.schema is None or relation.identifier is None:
+            raise DbtRuntimeError(
+                f"Cannot fetch table tags without a fully qualified relation name: {relation}"
+            )
+
+        entity_name = f"{relation.database}.{relation.schema}.{relation.identifier}"
+        tags = adapter.connections.api_client.entity_tag_assignments.list_table_tags(entity_name)
+        if tags is not None:
+            return tags
+
+        # Tokens scoped to `sql` can query information_schema but not the Unity Catalog API.
+        table = adapter.execute_macro("fetch_tags", kwargs={"relation": relation})
+        return {str(row[0]): "" if row[1] is None else str(row[1]) for row in table.rows}
+
+    @classmethod
     @abstractmethod
     def _describe_relation(
         cls,
@@ -1324,9 +1374,9 @@ class MaterializedViewAPI(DeltaLiveTableAPIBase[MaterializedViewConfig]):
         # to maintain backward compatibility.
         table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
         if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
-            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+            results["table_tags"] = cls._get_table_tags(adapter, relation)
         else:
-            results["information_schema.tags"] = None
+            results["table_tags"] = None
 
         column_tag_config = (
             model_config.config.get(ColumnTagsProcessor.name) if model_config else None
@@ -1379,9 +1429,9 @@ class StreamingTableAPI(DeltaLiveTableAPIBase[StreamingTableConfig]):
 
         table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
         if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
-            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+            results["table_tags"] = cls._get_table_tags(adapter, relation)
         else:
-            results["information_schema.tags"] = None
+            results["table_tags"] = None
 
         column_tag_config = (
             model_config.config.get(ColumnTagsProcessor.name) if model_config else None
@@ -1418,7 +1468,7 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
         relation: DatabricksRelation,
         model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> RelationResults:
-        results = {}
+        results: RelationResults = {}
         kwargs = {"relation": relation}
 
         if not relation.is_hive_metastore():
@@ -1426,11 +1476,9 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
             # fetched to maintain backward compatibility.
             table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
             if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
-                results["information_schema.tags"] = adapter.execute_macro(
-                    "fetch_tags", kwargs=kwargs
-                )
+                results["table_tags"] = cls._get_table_tags(adapter, relation)
             else:
-                results["information_schema.tags"] = None
+                results["table_tags"] = None
 
             # To be backward compatible model_config can be None. In that case, tags should be
             # fetched to maintain backward compatibility.
@@ -1453,15 +1501,26 @@ class IncrementalTableAPI(RelationAPIBase[IncrementalTableConfig]):
                 results["column_masks"] = relation_metadata.column_masks
                 results["row_filters"] = relation_metadata.row_filters
             else:
-                results["non_null_constraint_columns"] = adapter.execute_macro(
-                    "fetch_non_null_constraint_columns", kwargs=kwargs
+                constraint_config = (
+                    model_config.config.get(ConstraintsProcessor.name) if model_config else None
                 )
-                results["primary_key_constraints"] = adapter.execute_macro(
-                    "fetch_primary_key_constraints", kwargs=kwargs
-                )
-                results["foreign_key_constraints"] = adapter.execute_macro(
-                    "fetch_foreign_key_constraints", kwargs=kwargs
-                )
+                if (
+                    constraint_config is None
+                    or constraint_config.requires_server_metadata_for_diff()
+                ):
+                    results["non_null_constraint_columns"] = adapter.execute_macro(
+                        "fetch_non_null_constraint_columns", kwargs=kwargs
+                    )
+                    results["primary_key_constraints"] = adapter.execute_macro(
+                        "fetch_primary_key_constraints", kwargs=kwargs
+                    )
+                    results["foreign_key_constraints"] = adapter.execute_macro(
+                        "fetch_foreign_key_constraints", kwargs=kwargs
+                    )
+                else:
+                    results["non_null_constraint_columns"] = None
+                    results["primary_key_constraints"] = None
+                    results["foreign_key_constraints"] = None
                 results["column_masks"] = adapter.execute_macro("fetch_column_masks", kwargs=kwargs)
                 results["row_filters"] = adapter.execute_macro("fetch_row_filters", kwargs=kwargs)
 
@@ -1489,16 +1548,16 @@ class ViewAPI(RelationAPIBase[ViewConfig]):
         relation: DatabricksRelation,
         model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> RelationResults:
-        results = {}
+        results: RelationResults = {}
         kwargs = {"relation": relation}
 
         # To be backward compatible model_config can be None. In that case, tags should be fetched
         # to maintain backward compatibility.
         table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
         if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
-            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+            results["table_tags"] = cls._get_table_tags(adapter, relation)
         else:
-            results["information_schema.tags"] = None
+            results["table_tags"] = None
 
         column_tag_config = (
             model_config.config.get(ColumnTagsProcessor.name) if model_config else None
@@ -1543,16 +1602,15 @@ class MetricViewAPI(RelationAPIBase[MetricViewConfig]):
         relation: DatabricksRelation,
         model_config: Optional[DatabricksRelationConfigBase] = None,
     ) -> RelationResults:
-        results = {}
+        results: RelationResults = {}
         kwargs = {"relation": relation}
         results["show_tblproperties"] = adapter.execute_macro("fetch_tbl_properties", kwargs=kwargs)
 
-        kwargs = {"relation": relation}
         table_tag_config = model_config.config.get(TagsProcessor.name) if model_config else None
         if table_tag_config is None or table_tag_config.requires_server_metadata_for_diff():
-            results["information_schema.tags"] = adapter.execute_macro("fetch_tags", kwargs=kwargs)
+            results["table_tags"] = cls._get_table_tags(adapter, relation)
         else:
-            results["information_schema.tags"] = None
+            results["table_tags"] = None
 
         kwargs = {"table_name": relation}
         results["describe_extended"] = adapter.execute_macro(

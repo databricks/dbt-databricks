@@ -1,3 +1,4 @@
+from ast import literal_eval
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -25,6 +26,65 @@ class TestPersistDocsMacros(MacroTestBase):
         model.columns = {"id": column1, "value": column2}
 
         return model
+
+    def test_validate_doc_columns_filters_missing_and_warns(
+        self, template_bundle, context, relation
+    ):
+        columns = {
+            "id": {"name": "id", "description": "Primary key"},
+            "missing": {"name": "missing", "description": "Not materialized"},
+        }
+
+        result = self.run_macro_raw(
+            template_bundle.template,
+            "dbt_databricks_validate_doc_columns",
+            relation,
+            columns,
+            ["id"],
+        )
+
+        assert literal_eval(result) == {"id": columns["id"]}
+        context["exceptions"].warn.assert_called_once_with(
+            "In relation `some_database`.`some_schema`.`some_table`: The following columns are "
+            "specified in the schema but are not present in the database: missing"
+        )
+
+    def test_validate_doc_columns_is_silent_when_all_columns_exist(
+        self, template_bundle, context, relation
+    ):
+        columns = {
+            "id": {"name": "id", "description": "Primary key"},
+            "value": {"name": "value", "description": "Value"},
+        }
+
+        result = self.run_macro_raw(
+            template_bundle.template,
+            "dbt_databricks_validate_doc_columns",
+            relation,
+            columns,
+            ["id", "value"],
+        )
+
+        assert literal_eval(result) == columns
+        context["exceptions"].warn.assert_not_called()
+
+    def test_validate_doc_columns_matches_names_case_insensitively(
+        self, template_bundle, context, relation
+    ):
+        columns = {
+            "account_id": {"name": "account_id", "description": "Account ID"},
+        }
+
+        result = self.run_macro_raw(
+            template_bundle.template,
+            "dbt_databricks_validate_doc_columns",
+            relation,
+            columns,
+            ["Account_ID"],
+        )
+
+        assert literal_eval(result) == columns
+        context["exceptions"].warn.assert_not_called()
 
     def test_comment_on_column_sql_dbr_16_1_or_newer(self, template_bundle, context):
         """Test COMMENT ON COLUMN syntax for DBR 16.1+"""

@@ -533,3 +533,48 @@ seeds__over_view_csv = """id
 1
 2
 """
+
+seeds__flag_on_initial_csv = """id,name,rate,amount
+1,مرحبا بالعالم,1,100
+2,Γειά σου Κόσμε,2,200
+3,你好世界,3,300
+4,Hello 🌍 World ✨,4,400
+5,café naïve résumé — ,5,500
+"""
+
+seeds__flag_on_reseed_csv = """id,name,rate,amount
+1,مرحبا بالعالم,1,150
+2,Γειά σου Κόσμε,2,200
+3,你好世界,3,300
+4,Hello 🌍 World ✨,4,400
+5,café naïve résumé — ,5,500
+6,sixth,6,600
+"""
+
+seeds__flag_on_full_refresh_csv = """id,name,rate,amount,note
+1,مرحبا بالعالم,1,150,a
+2,Γειά σου Κόσμε,2,200,b
+"""
+
+seeds__flag_on_post_hook_sql = (
+    "alter table {{ this }} set tblproperties ('dbt_seed_post_hook' = '{{ var(\"seed_step\") }}')"
+)
+
+seeds__flag_on_schema_yml = """
+version: 2
+seeds:
+  - name: seed_flag_on
+    description: 'A seed description'
+    config:
+      column_types:
+        rate: double
+        amount: decimal(10,2)
+      persist_docs:
+        relation: true
+        columns: true
+    columns:
+      - name: id
+        description: 'An id column'
+      - name: name
+        description: 'A name column'
+"""

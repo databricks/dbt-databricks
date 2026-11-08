@@ -23,6 +23,30 @@ safer_ops_incremental_sql = """
 select 1 as id
 """
 
+safer_ops_upstream_sql = """
+{{ config(materialized='table', file_format='delta') }}
+select 1 as id, 'a' as old_col
+"""
+
+safer_ops_upstream_renamed_sql = """
+{{ config(materialized='table', file_format='delta') }}
+select 1 as id, 'a' as new_col
+"""
+
+safer_ops_upstream_csv = "id,old_col\n1,a\n"
+
+safer_ops_upstream_renamed_csv = "id,new_col\n1,a\n"
+
+safer_ops_view_sql = """
+{{ config(materialized='view') }}
+select id, old_col from {{ ref('safer_ops_upstream') }}
+"""
+
+safer_ops_view_renamed_sql = """
+{{ config(materialized='view') }}
+select id, new_col from {{ ref('safer_ops_upstream') }}
+"""
+
 replaced_relation_source_sql = """
 {{ config(materialized='table') }}
 select 1 as id union all select 2 as id union all select 3 as id
@@ -35,7 +59,9 @@ assert_cached_as_materialized_macro = """
     {% set relation = adapter.get_relation(
       database=this.database, schema=this.schema, identifier=this.identifier
     ) %}
-    {% if relation is none or relation.type != model.config.materialized %}
+    {% set materialized = model.config.materialized %}
+    {% set expected_type = "table" if materialized == "incremental" else materialized %}
+    {% if relation is none or relation.type != expected_type %}
       {{ exceptions.raise_compiler_error("Relation cache does not match the model: " ~ relation) }}
     {% endif %}
   {% endif %}
@@ -59,10 +85,12 @@ assert_cached_with_owner_macro = """
 """
 
 
-def replaced_relation_sql(materialized, post_hook=None):
+def replaced_relation_sql(materialized, post_hook=None, **extra_config):
     config = f"materialized='{materialized}'"
     if post_hook:
         config += f", post_hook='{{{{ {post_hook}() }}}}'"
+    for key, value in extra_config.items():
+        config += f", {key}={value!r}"
     stream = "stream " if materialized == "streaming_table" else ""
     return f"""
 {{{{ config({config}) }}}}
