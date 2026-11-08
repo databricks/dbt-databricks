@@ -9,9 +9,8 @@ from tests.functional.adapter.persist_docs.test_persist_docs import (
 class TestPersistDocsV2(_TestPersistDocs, MaterializationV2Mixin):
     """V2 persist_docs on the table/view model create path.
 
-    TestPersistDocs covers V1; the only pre-existing V2 coverage is
-    TestPersistDocsWithSeedsV2 (the seed path). This class reuses the V1 models,
-    properties, and assertions, adding the use_materialization_v2 flag so comments
+    This class reuses the V1 models, properties, and assertions, adding the
+    use_materialization_v2 flag so comments
     flow through relations/table/create.sql and relations/view/create.sql.
 
     project_config_update is overridden (rather than relying on

@@ -39,6 +39,22 @@ gate_model_sql = """
 select 1 as id, 'alice' as name
 """
 
+missing_column_incremental_sql = """
+{{ config(materialized='incremental') }}
+select 1 as id, 'Ed' as name
+"""
+
+missing_column_incremental_schema = """
+version: 2
+models:
+  - name: missing_column_incremental
+    columns:
+      - name: id
+        description: "test id column description"
+      - name: column_that_does_not_exist
+        description: "comment that cannot be created"
+"""
+
 gate_model_schema = """
 version: 2
 models:
@@ -47,4 +63,136 @@ models:
     columns:
       - name: id
         description: The id column description
+"""
+
+schema_change_incremental_initial_sql = """
+{{ config(materialized='incremental', on_schema_change='append_new_columns') }}
+select 1 as id
+"""
+
+schema_change_incremental_updated_sql = """
+{{ config(materialized='incremental', on_schema_change='append_new_columns') }}
+select 1 as id, 'new value' as new_col
+"""
+
+schema_change_incremental_initial_yml = """
+version: 2
+models:
+  - name: schema_change_incremental
+    columns:
+      - name: id
+        description: "id comment"
+"""
+
+schema_change_incremental_updated_yml = """
+version: 2
+models:
+  - name: schema_change_incremental
+    columns:
+      - name: id
+        description: "id comment"
+      - name: new_col
+        description: "new column comment"
+"""
+
+alter_view_initial_sql = """
+{{ config(materialized='view', view_update_via_alter=true) }}
+select 1 as id
+"""
+
+alter_view_updated_sql = """
+{{ config(materialized='view', view_update_via_alter=true) }}
+select 1 as id, 2 as added_col
+"""
+
+alter_view_initial_yml = """
+version: 2
+models:
+  - name: alter_view
+    columns:
+      - name: id
+        description: "id comment"
+"""
+
+alter_view_updated_yml = """
+version: 2
+models:
+  - name: alter_view
+    columns:
+      - name: id
+        description: "updated id comment"
+      - name: added_col
+        description: "added column comment"
+"""
+
+# Same query change as alter_view_updated_sql (drives the ALTER path), but the schema.yml
+# also documents a column that's never added to the query - genuinely missing, not just
+# not-yet-altered - to prove validate_persist_doc_columns still fires on ALTER, not just create.
+alter_view_updated_with_missing_col_yml = """
+version: 2
+models:
+  - name: alter_view
+    columns:
+      - name: id
+        description: "updated id comment"
+      - name: added_col
+        description: "added column comment"
+      - name: ghost_col
+        description: "comment that cannot be created"
+"""
+
+# Create-time coverage for the materializations #1563 did not touch: view, materialized_view,
+# streaming_table. Each documents a column absent from the relation; the post-build
+# validate_persist_doc_columns check must surface it on create.
+missing_column_create_seed = """id,value
+1,10
+2,20
+"""
+
+missing_column_view_sql = """
+{{ config(materialized='view') }}
+select * from {{ ref('mc_seed') }}
+"""
+
+missing_column_view_schema = """
+version: 2
+models:
+  - name: missing_column_view
+    columns:
+      - name: id
+        description: "test id column description"
+      - name: column_that_does_not_exist
+        description: "comment that cannot be created"
+"""
+
+missing_column_mv_sql = """
+{{ config(materialized='materialized_view') }}
+select * from {{ ref('mc_seed') }}
+"""
+
+missing_column_mv_schema = """
+version: 2
+models:
+  - name: missing_column_mv
+    columns:
+      - name: id
+        description: "test id column description"
+      - name: column_that_does_not_exist
+        description: "comment that cannot be created"
+"""
+
+missing_column_st_sql = """
+{{ config(materialized='streaming_table') }}
+select * from stream {{ ref('mc_seed') }}
+"""
+
+missing_column_st_schema = """
+version: 2
+models:
+  - name: missing_column_st
+    columns:
+      - name: id
+        description: "test id column description"
+      - name: column_that_does_not_exist
+        description: "comment that cannot be created"
 """

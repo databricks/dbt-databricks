@@ -9,7 +9,11 @@
 
   {%- if not defer_relation -%}
       -- nothing to do
-      {{ log("No relation found in state manifest for " ~ model.unique_id, info=True) }}
+      {%- if model.config.materialized == 'ephemeral' -%}
+          {{ log("Skipping clone for ephemeral model " ~ model.unique_id, info=True) }}
+      {%- else -%}
+          {{ log("No relation found in state manifest for " ~ model.unique_id, info=True) }}
+      {%- endif -%}
       {{ return(relations) }}
   {%- endif -%}
 
@@ -24,12 +28,14 @@
   {%- set other_existing_relation = load_cached_relation(defer_relation) -%}
   {%- set file_format = adapter.resolve_file_format(config) -%}
 
-  -- If this is a database that can do zero-copy cloning of tables, and the other relation is a table, then this will be a table
+  -- If this is a database that can do zero-copy cloning of tables, and the other relation is a table
+  -- without a row filter or column mask, then this will be a table
   -- Otherwise, this will be a view
 
   {% set can_clone_table = can_clone_table() %}
 
-  {%- if other_existing_relation and other_existing_relation.type == 'table' and can_clone_table -%}
+  {%- if other_existing_relation and other_existing_relation.type == 'table' and can_clone_table
+        and not clone_source_has_policies(other_existing_relation) -%}
 
       {%- set target_relation = this.incorporate(type='table') -%}
       {% if clone_requires_drop(existing_relation) %}
