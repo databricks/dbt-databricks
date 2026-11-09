@@ -4,6 +4,11 @@ from dbt.tests.adapter.dbt_clone.test_dbt_clone import BaseClone, BaseClonePossi
 from dbt.tests.util import run_dbt
 
 from tests.functional.adapter.dbt_clone import fixtures
+from tests.functional.adapter.fixtures import (
+    MaterializationV2Mixin,
+    RequiresDescribeAsJsonCapabilityMixin,
+    RerunSafeMixin,
+)
 
 
 class CleanupMixin:
@@ -337,3 +342,213 @@ class TestRebuildOverShallowClone(BaseClone, CleanupMixin):
             fetch="all",
         )
         assert [row[0] for row in rows] == [1]
+
+
+class TestCloneViewWithChangedContract(RerunSafeMixin, BaseClone, CleanupMixin):
+    """A view whose enforced contract changed since the deferred state still clones (#1349)."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "view_model.sql": fixtures.contract_view_model_sql,
+            "schema.yml": fixtures.contract_view_schema_yml,
+        }
+
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {}
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {}
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ["view_model"]
+
+    @pytest.fixture(autouse=True)
+    def reset_clone_target(self, project, other_schema):
+        project.create_test_schema(other_schema)
+        project.run_sql(f"drop view if exists `{project.database}`.`{other_schema}`.`view_model`")
+
+    def test_clone_view_with_changed_contract(self, project, unique_schema, other_schema):
+        run_dbt(["run"])
+        self.copy_state(project.project_root)
+
+        util.write_file(
+            fixtures.contract_view_model_renamed_sql,
+            project.project_root,
+            "models",
+            "view_model.sql",
+        )
+        util.write_file(
+            fixtures.contract_view_renamed_schema_yml, project.project_root, "models", "schema.yml"
+        )
+
+        run_dbt(["clone", "--state", "state", "--target", "otherschema"])
+
+        rows = project.run_sql(
+            f"select id, name from {project.database}.{other_schema}.view_model", fetch="all"
+        )
+        assert [tuple(row) for row in rows] == [(1, "a")]
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestCloneRowFilteredMaterializedView(BaseClone, CleanupMixin):
+    """A materialized view with a row filter clones to a view that reads through the filter."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "governed_model.sql": fixtures.row_filter_mv_sql,
+            "schema.yml": fixtures.row_filter_schema_yml,
+        }
+
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {}
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {}
+
+    policy_function = "region_a_filter(region string) returns boolean return region = 'a'"
+    select_columns = "region, id"
+    expected_rows: list[tuple] = [("a", 1)]
+
+    def build_prod(self, project):
+        run_dbt(["run"])
+
+    def test_clone_governed_model(self, project, other_schema):
+        project.run_sql(
+            f"create or replace function {project.database}.{project.test_schema}."
+            f"{self.policy_function}"
+        )
+        project.create_test_schema(other_schema)
+        self.build_prod(project)
+        self.copy_state(project.project_root)
+
+        run_dbt(["clone", "--state", "state", "--target", "otherschema"])
+
+        assert _table_type(project, other_schema, "governed_model") == "VIEW"
+        rows = project.run_sql(
+            f"select {self.select_columns} from {project.database}.{other_schema}.governed_model",
+            fetch="all",
+        )
+        assert [tuple(row) for row in rows] == self.expected_rows
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestCloneRowFilteredStreamingTable(TestCloneRowFilteredMaterializedView):
+    """A streaming table with a row filter clones to a view that reads through the filter."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "governed_model.sql": fixtures.row_filter_st_sql,
+            "schema.yml": fixtures.row_filter_schema_yml,
+        }
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {"row_filter_seed.csv": fixtures.row_filter_seed_csv}
+
+    def build_prod(self, project):
+        run_dbt(["seed"])
+        run_dbt(["run"])
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestCloneColumnMaskedStreamingTable(TestCloneRowFilteredStreamingTable):
+    """A streaming table with a column mask clones to a view that reads through the mask."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "governed_model.sql": fixtures.column_mask_st_sql,
+            "schema.yml": fixtures.column_mask_schema_yml,
+        }
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {"column_mask_seed.csv": fixtures.column_mask_seed_csv}
+
+    policy_function = "password_mask(password string) returns string return '*****'"
+    select_columns = "id, password"
+    expected_rows = [("abc123", "*****")]
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestCloneRowFilteredTable(TestCloneRowFilteredMaterializedView):
+    """A table with a row filter can't be shallow-cloned, so it clones to a view that reads
+    through the filter."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "governed_model.sql": fixtures.row_filter_table_sql,
+            "schema.yml": fixtures.row_filter_schema_yml,
+        }
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestCloneRowFilterAppliedOutsideDbt(TestCloneRowFilteredTable):
+    """The clone follows the deferred table's policies, not the model config."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"governed_model.sql": fixtures.row_filter_table_sql}
+
+    def build_prod(self, project):
+        run_dbt(["run"])
+        schema = f"{project.database}.{project.test_schema}"
+        project.run_sql(
+            f"alter table {schema}.governed_model "
+            f"set row filter {schema}.region_a_filter on (region)"
+        )
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestCloneColumnMaskedTable(MaterializationV2Mixin, TestCloneRowFilteredTable):
+    """A table with a column mask clones to a view that reads through the mask.
+
+    V1 tables don't apply column masks at create, so prod is built with V2.
+    """
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "governed_model.sql": fixtures.column_mask_table_sql,
+            "schema.yml": fixtures.column_mask_schema_yml,
+        }
+
+    policy_function = "password_mask(password string) returns string return '*****'"
+    select_columns = "id, password"
+    expected_rows = [("abc123", "*****")]
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestCloneRowFilterAppliedOutsideDbtDescribeAsJson(
+    RequiresDescribeAsJsonCapabilityMixin, TestCloneRowFilterAppliedOutsideDbt
+):
+    """The DESCRIBE TABLE EXTENDED AS JSON lookup also finds a row filter."""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {"flags": {"use_describe_as_json_for_relation_metadata": True}}
+
+
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestCloneColumnMaskedTableDescribeAsJson(
+    RequiresDescribeAsJsonCapabilityMixin, TestCloneColumnMaskedTable
+):
+    """The DESCRIBE TABLE EXTENDED AS JSON lookup also finds a column mask."""
+
+    @pytest.fixture(scope="class")
+    def project_config_update(self):
+        return {
+            "flags": {
+                "use_materialization_v2": True,
+                "use_describe_as_json_for_relation_metadata": True,
+            }
+        }
