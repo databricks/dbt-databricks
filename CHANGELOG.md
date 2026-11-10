@@ -20,7 +20,7 @@
 
 ### Under the Hood
 
-- Allow `databricks-sql-connector` 4.9.x (upper bound raised to `<4.9.1`) and keep the `enable_dbt_telemetry` server-flag check working with connector 4.7.0+ ([#PR](https://github.com/databricks/dbt-databricks/pull/PR))
+- Allow `databricks-sql-connector` 4.9.x (upper bound raised to `<4.9.1`) and keep the `enable_dbt_telemetry` server-flag check working with connector 4.7.0+ ([#1768](https://github.com/databricks/dbt-databricks/pull/1768))
 
 ## dbt-databricks 1.13.0 (Oct 29, 2026)
 
