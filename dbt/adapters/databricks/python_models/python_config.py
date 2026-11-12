@@ -49,6 +49,7 @@ class PythonModelConfig(BaseModel):
     python_job_config: PythonJobConfig = Field(default_factory=lambda: PythonJobConfig(**{}))
     cluster_id: Optional[str] = None
     http_path: Optional[str] = None
+    databricks_compute: Optional[str] = None
     create_notebook: bool = False
     notebook_scoped_libraries: bool = False
     environment_key: Optional[str] = None
@@ -97,6 +98,10 @@ class ParsedPythonModel(BaseModel):
 
     identifier: str = Field(alias="alias")
     config: PythonModelConfig
+
+    @property
+    def relation_name(self) -> str:
+        return f"{self.catalog}.{self.schema_}.{self.identifier}"
 
     @property
     def run_name(self) -> str:

@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from typing_extensions import override
 
 from dbt.adapters.databricks.api_client import CommandExecution, DatabricksApiClient, WorkflowJobApi
+from dbt.adapters.databricks.connections import QueryConfigUtils, QueryContextWrapper
 from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.logging import logger
 from dbt.adapters.databricks.python_models.python_config import (
@@ -486,14 +487,31 @@ class AllPurposeClusterPythonJobHelper(BaseDatabricksHelper):
             self.parsed_model.config.user_folder_for_python,
         )
 
-        config = self.parsed_model.config
-        self.create_notebook = config.create_notebook
-        self.cluster_id = config.cluster_id or self.credentials.extract_cluster_id(
-            config.http_path or self.credentials.http_path or ""
-        )
+        self.create_notebook = self.parsed_model.config.create_notebook
+        self.cluster_id = self._resolve_cluster_id()
         self.validate_config()
 
         self.command_submitter = self.build_submitter()
+
+    def _resolve_cluster_id(self) -> Optional[str]:
+        config = self.parsed_model.config
+        if config.cluster_id:
+            return config.cluster_id
+        if config.http_path:
+            return self.credentials.extract_cluster_id(config.http_path)
+        if config.databricks_compute:
+            compute_http_path = QueryConfigUtils.get_http_path(
+                QueryContextWrapper(
+                    compute_name=config.databricks_compute,
+                    relation_name=self.parsed_model.relation_name,
+                ),
+                self.credentials,
+            )
+            compute_cluster_id = self.credentials.extract_cluster_id(compute_http_path)
+            # Python can't run on a SQL warehouse, so keep the default cluster in that case.
+            if compute_cluster_id:
+                return compute_cluster_id
+        return self.credentials.extract_cluster_id(self.credentials.http_path or "")
 
     @override
     def build_submitter(self) -> PythonSubmitter:
