@@ -19,6 +19,12 @@ table_model_sql = """
 select 1 as id
 """
 
+deep_clone_table_model_sql = """
+{{ config(materialized = 'table', deep_clone = var('deep_clone', false)) }}
+
+select 1 as id
+"""
+
 auto_cluster_table_model_sql = """
 {{ config(materialized = 'table', auto_liquid_cluster = true) }}
 

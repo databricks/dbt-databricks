@@ -300,6 +300,52 @@ class TestCloneOverExistingManagedTable(BaseClone, CleanupMixin):
 
 
 @pytest.mark.skip_profile("databricks_cluster")
+class TestCloneDeepClone(BaseClone, CleanupMixin):
+    """`deep_clone: true` copies the deferred table into a managed table: it replaces an
+    existing shallow clone, and re-clones an existing deep clone in place."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"table_model.sql": fixtures.deep_clone_table_model_sql}
+
+    @pytest.fixture(scope="class")
+    def snapshots(self):
+        return {}
+
+    @pytest.fixture(scope="class")
+    def seeds(self):
+        return {}
+
+    def test_deep_clone(self, project, unique_schema, other_schema):
+        project.create_test_schema(other_schema)
+        run_dbt(["run"])
+        self.copy_state(project.project_root)
+
+        clone_args = ["clone", "--state", "state", "--target", "otherschema"]
+        run_dbt(clone_args)
+        assert _table_type(project, other_schema, "table_model") == "MANAGED_SHALLOW_CLONE"
+
+        deep_clone_args = [*clone_args, "--full-refresh", "--vars", "{deep_clone: true}"]
+        run_dbt(deep_clone_args)
+        assert _table_type(project, other_schema, "table_model") == "MANAGED"
+
+        cloned = f"{project.database}.{other_schema}.table_model"
+        rows = project.run_sql(f"select id from {cloned}", fetch="all")
+        assert [row[0] for row in rows] == [1]
+        version, operations, versions_before = _delta_history(project, cloned)
+        assert "CLONE" in operations, f"deep clone history operations: {operations}"
+
+        run_dbt(deep_clone_args)
+        assert _table_type(project, other_schema, "table_model") == "MANAGED"
+        refreshed_version, _, refreshed_versions = _delta_history(project, cloned)
+        assert refreshed_version > version
+        assert versions_before.issubset(refreshed_versions), (
+            f"re-cloning a deep clone must keep prior history versions; "
+            f"lost {versions_before - refreshed_versions} from {refreshed_versions}"
+        )
+
+
+@pytest.mark.skip_profile("databricks_cluster")
 class TestRebuildOverShallowClone(BaseClone, CleanupMixin):
     """Rebuilding a table/incremental model with auto_liquid_cluster over an existing shallow
     clone must drop the clone and produce a managed table, rather than failing with
