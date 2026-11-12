@@ -584,6 +584,25 @@ class TestAllPurposeClusterMissingClusterId:
 
 
 @pytest.mark.python
+@pytest.mark.skip_kernel  # routes the model to a UC cluster; SEA/kernel is warehouse-only
+@pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
+class TestAllPurposeClusterDatabricksCompute:
+    """On a SQL warehouse connection, all_purpose_cluster resolves its cluster from the
+    model's databricks_compute instead of failing for lack of a cluster_id."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {"ap_databricks_compute.py": override_fixtures.databricks_compute_python_model}
+
+    def test_python_runs_on_databricks_compute(self, project):
+        util.run_dbt(["run"])
+        rows = project.run_sql(
+            "SELECT id, val FROM {database}.{schema}.ap_databricks_compute", fetch="all"
+        )
+        assert [tuple(row) for row in rows] == [(1, 2)]
+
+
+@pytest.mark.python
 @pytest.mark.skip_profile("databricks_cluster")
 class TestManagedIcebergPythonModel(ManagedIcebergMixin):
     """Regression for #1591: managed Iceberg Python models must materialize as Iceberg."""
