@@ -332,3 +332,20 @@ class TestPersistDocsMacros(MacroTestBase):
             "COMMENT ON TABLE `some_database`.`some_schema`.`some_table` IS 'This is a test model'"
         )
         self.assert_sql_equal(sql, expected_sql)
+
+    def test_databricks__persist_docs_skips_functions(self, template_bundle, context, relation):
+        context["config"] = MagicMock()
+        context["config"].persist_relation_docs.return_value = True
+        context["config"].persist_column_docs.return_value = True
+        relation.type = DatabricksRelationType.Function
+        model = Mock()
+        model.description = "Doubles a value"
+        model.columns = {"x": {"name": "x", "description": "Input"}}
+        context["run_query_as"] = Mock()
+
+        self.run_macro_raw(
+            template_bundle.template, "databricks__persist_docs", relation, model, True, True
+        )
+
+        context["run_query_as"].assert_not_called()
+        context["adapter"].get_columns_in_relation.assert_not_called()
