@@ -1,6 +1,10 @@
+from unittest.mock import Mock
+
 import pytest
 
 from tests.unit.macros.base import MacroTestBase
+
+WARN_PREFIX = "merge_actions_explicit is set; ignoring conflicting merge action config(s): "
 
 
 class TestGetMergeSQL(MacroTestBase):
@@ -87,3 +91,133 @@ class TestGetMergeSQL(MacroTestBase):
         sql = self.render_insert(template, on_schema_change="append", source_columns=["a", "b"])
         expected = "(`a`, `b`) VALUES (src.`a`, src.`b`)"
         self.assert_sql_equal(sql, expected)
+
+
+class TestMergeActionsExplicit(MacroTestBase):
+    """Tests for the merge_actions_explicit config key in databricks__get_merge_sql."""
+
+    @pytest.fixture(scope="class")
+    def template_name(self) -> str:
+        return "strategies.sql"
+
+    @pytest.fixture(scope="class")
+    def macro_folders_to_load(self) -> list:
+        return ["macros/materializations/incremental"]
+
+    @pytest.fixture(autouse=True)
+    def setup_merge_context(self, context):
+        """Set up adapter mocks required by databricks__get_merge_sql."""
+        mock_col = Mock()
+        mock_col.name = "id"
+        mock_col.quoted = "`id`"
+        context["adapter"].get_columns_in_relation.return_value = [mock_col]
+        context["incremental_validate_on_schema_change"] = lambda val, default="ignore": (
+            val if val else default
+        )
+        # These sibling macros from strategies.sql are called unqualified inside
+        # databricks__get_merge_sql; inject minimal stubs so the macro can render.
+        context["get_merge_update_columns"] = lambda *a, **kw: None
+        context["get_merge_update_set"] = lambda *a, **kw: "*"
+        context["get_merge_insert"] = lambda *a, **kw: "*"
+
+    def render_merge_sql(
+        self, template, config, unique_key="id", source="src_rel", target="tgt_rel"
+    ):
+        config.setdefault("target_alias", "DBT_INTERNAL_DEST")
+        config.setdefault("source_alias", "DBT_INTERNAL_SOURCE")
+        return self.run_macro_raw(
+            template,
+            "databricks__get_merge_sql",
+            target,
+            source,
+            unique_key,
+            [],  # dest_columns — overridden by adapter.get_columns_in_relation inside macro
+            None,  # incremental_predicates
+        )
+
+    def test_explicit_actions_replace_default_when_clauses(self, template, config):
+        """Explicit block is emitted verbatim and fully replaces the default clauses."""
+        config["merge_actions_explicit"] = "when matched then FAKE_ACTION"
+        sql = self.clean_sql(self.render_merge_sql(template, config))
+        assert "when matched then fake_action" in sql
+        # Default path renders "then update set *"; explicit block must replace it entirely
+        assert "then update set" not in sql
+
+    @pytest.mark.parametrize("value", [None, "", "   \n\t  "])
+    def test_blank_explicit_actions_fall_back_to_default(self, template, config, value):
+        """Null / empty / whitespace-only config falls back to the default path."""
+        config["merge_actions_explicit"] = value
+        sql = self.clean_sql(self.render_merge_sql(template, config))
+        assert "when matched then update set" in sql
+        assert "when not matched then insert" in sql
+        assert "none" not in sql
+
+    def test_no_conflicting_configs_no_warning(self, template, config, context):
+        config["merge_actions_explicit"] = "when matched then FAKE_ACTION"
+        self.render_merge_sql(template, config)
+        context["exceptions"].warn.assert_not_called()
+
+    @pytest.mark.parametrize(
+        "key, value",
+        [
+            ("skip_matched_step", True),
+            ("skip_matched_step", "true"),
+            ("skip_not_matched_step", True),
+            ("matched_condition", "1 = 1"),
+            ("not_matched_condition", "1 = 1"),
+            ("not_matched_by_source_action", "delete"),
+            ("not_matched_by_source_condition", "1 = 1"),
+        ],
+    )
+    def test_conflicting_config_warns(self, template, config, context, key, value):
+        config["merge_actions_explicit"] = "when matched then FAKE_ACTION"
+        config[key] = value
+        self.render_merge_sql(template, config)
+        context["exceptions"].warn.assert_called_once_with(WARN_PREFIX + key)
+
+    @pytest.mark.parametrize(
+        "key, value",
+        [
+            ("skip_matched_step", False),
+            ("skip_matched_step", "false"),
+            ("skip_not_matched_step", False),
+        ],
+    )
+    def test_false_skip_flags_do_not_warn(self, template, config, context, key, value):
+        config["merge_actions_explicit"] = "when matched then FAKE_ACTION"
+        config[key] = value
+        self.render_merge_sql(template, config)
+        context["exceptions"].warn.assert_not_called()
+
+    @pytest.mark.parametrize("value", [None, "", "   \n\t  "])
+    def test_unset_explicit_actions_do_not_warn(self, template, config, context, value):
+        config["merge_actions_explicit"] = value
+        config["matched_condition"] = "src.x = 1"
+        sql = self.clean_sql(self.render_merge_sql(template, config))
+        context["exceptions"].warn.assert_not_called()
+        assert "when matched and (src.x = 1) then update set" in sql
+
+    def test_multiple_conflicting_configs_listed_in_one_warning(self, template, config, context):
+        config["merge_actions_explicit"] = "when matched then FAKE_ACTION"
+        config["skip_not_matched_step"] = True
+        config["matched_condition"] = "1 = 1"
+        self.render_merge_sql(template, config)
+        context["exceptions"].warn.assert_called_once_with(
+            WARN_PREFIX + "skip_not_matched_step, matched_condition"
+        )
+
+    def test_all_conflicting_configs_listed_in_order(self, template, config, context):
+        config.update(
+            merge_actions_explicit="when matched then FAKE_ACTION",
+            skip_matched_step=True,
+            skip_not_matched_step=True,
+            matched_condition="1 = 1",
+            not_matched_condition="1 = 1",
+            not_matched_by_source_action="delete",
+            not_matched_by_source_condition="1 = 1",
+        )
+        self.render_merge_sql(template, config)
+        context["exceptions"].warn.assert_called_once_with(
+            WARN_PREFIX + "skip_matched_step, skip_not_matched_step, matched_condition, "
+            "not_matched_condition, not_matched_by_source_action, not_matched_by_source_condition"
+        )
