@@ -967,6 +967,7 @@ class DatabricksAdapter(SparkAdapter):
         self, sql: str, fetch: str, conn: Connection
     ) -> Optional[Union[Optional[tuple], list[tuple]]]:
         handle = conn.handle
+        cursor = None
         try:
             cursor = handle.execute(sql)
             if fetch == "one":
