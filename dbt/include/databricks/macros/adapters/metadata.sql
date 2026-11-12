@@ -70,8 +70,8 @@ SHOW VIEWS IN {{ relation.render() }}
   {% if information_schema.is_hive_metastore() %}
     {%- for relation in relations -%}
 SELECT
-  '{{ relation.schema }}' AS schema,
-  '{{ relation.identifier }}' AS identifier,
+  '{{ escape_relation_literal(relation.schema) }}' AS schema,
+  '{{ escape_relation_literal(relation.identifier) }}' AS identifier,
   max(timestamp) AS last_modified,
   {{ current_timestamp() }} AS snapshotted_at
   FROM (DESCRIBE HISTORY {{ relation.render() }})
@@ -86,11 +86,11 @@ SELECT
   last_altered AS last_modified,
   {{ current_timestamp() }} AS snapshotted_at
 FROM `system`.`information_schema`.`tables`
-WHERE table_catalog = '{{ information_schema.database|lower }}'
+WHERE table_catalog = '{{ escape_relation_literal(information_schema.database|lower) }}'
   AND (
     {%- for relation in relations -%}
-    (table_schema = '{{ relation.schema|lower }}' AND
-    table_name = '{{ relation.identifier|lower }}'){%- if not loop.last %} OR {% endif -%}
+    (table_schema = '{{ escape_relation_literal(relation.schema|lower) }}' AND
+    table_name = '{{ escape_relation_literal(relation.identifier|lower) }}'){%- if not loop.last %} OR {% endif -%}
     {%- endfor -%}
   )
   {% endif %}
@@ -103,9 +103,9 @@ WHERE table_catalog = '{{ information_schema.database|lower }}'
 {% macro get_view_description_sql(relation) %}
 SELECT *
 FROM `system`.`information_schema`.`views`
-WHERE table_catalog = '{{ relation.database|lower }}'
-  AND table_schema = '{{ relation.schema|lower }}'
-  AND table_name = '{{ relation.identifier|lower }}'
+WHERE table_catalog = '{{ escape_relation_literal(relation.database|lower) }}'
+  AND table_schema = '{{ escape_relation_literal(relation.schema|lower) }}'
+  AND table_name = '{{ escape_relation_literal(relation.identifier|lower) }}'
 {% endmacro %}
 
 {% macro get_uc_tables(relation) %}
@@ -129,10 +129,10 @@ SELECT
     NULL
   ) AS databricks_table_type
 FROM `system`.`information_schema`.`tables`
-WHERE table_catalog = '{{ relation.database|lower }}'
-  AND table_schema = '{{ relation.schema|lower }}'
+WHERE table_catalog = '{{ escape_relation_literal(relation.database|lower) }}'
+  AND table_schema = '{{ escape_relation_literal(relation.schema|lower) }}'
   {%- if relation.identifier %}
-  AND table_name = '{{ relation.identifier|lower }}'
+  AND table_name = '{{ escape_relation_literal(relation.identifier|lower) }}'
   {% endif %}
 {% endmacro %}
 
