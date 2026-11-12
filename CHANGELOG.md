@@ -21,7 +21,7 @@
 ### Under the Hood
 
 - Allow `databricks-sql-connector` 4.9.x (upper bound raised to `<4.9.1`) and keep the `enable_dbt_telemetry` server-flag check working with connector 4.7.0+ ([#1768](https://github.com/databricks/dbt-databricks/pull/1768))
-- Allow `databricks-sdk` through 0.157.x (upper bound raised to `<0.158.0`) so projects that pin a newer SDK can install dbt-databricks alongside it ([#PRNUM](https://github.com/databricks/dbt-databricks/pull/PRNUM) resolves [#1761](https://github.com/databricks/dbt-databricks/issues/1761))
+- Allow `databricks-sdk` through 0.157.x (upper bound raised to `<0.158.0`) so projects that pin a newer SDK can install dbt-databricks alongside it ([#1770](https://github.com/databricks/dbt-databricks/pull/1770) resolves [#1761](https://github.com/databricks/dbt-databricks/issues/1761))
 
 ## dbt-databricks 1.13.0 (Oct 29, 2026)
 
