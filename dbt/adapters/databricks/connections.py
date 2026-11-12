@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 from collections.abc import Callable, Iterator
@@ -639,6 +640,10 @@ class QueryConfigUtils:
             QueryTagsUtils.parse_query_tags(creds.query_tags) if creds.query_tags else {}
         )
 
+        # Parse environment variable query tags from JSON string
+        env_query_tags_str = os.getenv("DBT_DATABRICKS_QUERY_TAGS") or os.getenv("DBT_QUERY_TAGS")
+        env_tags = QueryTagsUtils.parse_query_tags(env_query_tags_str) if env_query_tags_str else {}
+
         # Extract model-level query tags from context
         model_tags = {}
         if (
@@ -652,4 +657,5 @@ class QueryConfigUtils:
             connection_tags=connection_tags,
             model_tags=model_tags,
             default_tags=default_tags,
+            env_tags=env_tags,
         )
