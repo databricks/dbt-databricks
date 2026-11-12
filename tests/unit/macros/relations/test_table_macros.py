@@ -48,6 +48,7 @@ class TestCreateTableAs(MacroTestBase):
         """
         template.globals["adapter"].is_uniform.return_value = False
         template.globals["adapter"].update_tblproperties_for_uniform_iceberg.return_value = {}
+        template.globals["adapter"].update_tblproperties_for_snapshot.return_value = {}
         return template.globals
 
     def render_create_table_as(self, template_bundle, temporary=False, sql="select 1"):
@@ -84,6 +85,21 @@ class TestCreateTableAs(MacroTestBase):
             " tblproperties ('delta.enableIcebergCompatV2' = 'true' , "
             "'delta.universalFormat.enabledFormats' = 'iceberg') as select 1"
         )
+
+    def test_macros_create_table_as_snapshot(self, config, template_bundle):
+        template_bundle.context["adapter"].build_catalog_relation.return_value = unity_relation()
+        config["materialized"] = "snapshot"
+        stats_cols = "dbt_scd_id, dbt_updated_at, dbt_valid_from, dbt_valid_to"
+        template_bundle.context["adapter"].update_tblproperties_for_snapshot.return_value = {
+            "delta.dataSkippingStatsColumns": stats_cols
+        }
+        sql = self.render_create_table_as(template_bundle)
+        expected = self.clean_sql(
+            f"create or replace table {template_bundle.relation.render()} using delta "
+            f"tblproperties ('delta.dataSkippingStatsColumns' = '{stats_cols}') "
+            "as select 1"
+        )
+        assert sql == expected
 
     @pytest.mark.parametrize("format", [constants.PARQUET_FILE_FORMAT, constants.HUDI_FILE_FORMAT])
     def test_macros_create_table_as_file_format(self, format, config, template_bundle):

@@ -2,6 +2,7 @@
 
 ### Features
 
+- Configure `delta.dataSkippingStatsColumns` on Delta snapshot tables to collect statistics on snapshot technical columns and leading data columns, enabling automatic and explicit liquid clustering on snapshot metadata columns ([#1481](https://github.com/databricks/dbt-databricks/issues/1481))
 - Accept `use_materialization_v2` as a model config, so a project or an individual table or incremental model can choose between the atomic `CREATE OR REPLACE TABLE … AS SELECT` path and the create-then-insert path; models that don't set it follow the `use_materialization_v2` behavior flag, and view models ignore it ([#1718](https://github.com/databricks/dbt-databricks/pull/1718))
 
 ### Fixes
