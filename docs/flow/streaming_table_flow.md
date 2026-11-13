@@ -1,6 +1,6 @@
 # Streaming Table Flow
 
-_Last updated: 2026-10-13_
+_Last updated: 2026-11-13_
 
 > Streaming tables do **not** use the `use_materialization_v2` flag — there is a single path.
 > Source: `dbt/include/databricks/macros/materializations/streaming_table.sql`.
@@ -67,3 +67,9 @@ Notes:
   column tags continue to use `information_schema`. If the API denies access (for example, a token
   without the `unity-catalog` scope), table tags for the rest of the run are read from
   `information_schema` instead.
+- **Expectations** (`expectations` config) are diffed through a fingerprint, because Databricks
+  returns their expressions rewritten. Every `CREATE` and every in-place `CREATE OR REFRESH`
+  declares the configured list together with a `dbt.expectations_hash` table property holding its
+  hash, and the configuration diff compares that property with the hash of the model's list. A
+  difference is a configuration change that is applied in place and affects only rows processed
+  afterwards.

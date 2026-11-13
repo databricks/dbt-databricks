@@ -85,7 +85,19 @@ class MaterializedViewChangesMixin(MaterializedViewChanges):
 class TestMaterializedViewApplyChanges(
     MaterializedViewChangesMixin, MaterializedViewChangesApplyMixin
 ):
-    pass
+    def test_expectations_change_is_applied(self, project, my_materialized_view):
+        util.set_model_file(
+            project, my_materialized_view, fixtures.materialized_view_with_expectations
+        )
+        util.run_dbt(["run", "--models", my_materialized_view.identifier])
+
+        rows = project.run_sql(f"select id from {my_materialized_view} order by id", fetch="all")
+        assert rows == [(1,), (3,)]
+
+        # Unchanged expectations seen as a change would rebuild the materialized view on every run.
+        created = fixtures.query_created_time(project, my_materialized_view)
+        util.run_dbt(["run", "--models", my_materialized_view.identifier])
+        assert fixtures.query_created_time(project, my_materialized_view) == created
 
 
 @pytest.mark.dlt
