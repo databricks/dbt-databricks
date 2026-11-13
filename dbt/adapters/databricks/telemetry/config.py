@@ -52,11 +52,20 @@ def is_enabled_for_connection(
     if not is_enabled(credentials):
         return False
     try:
-        context = FeatureFlagsContextFactory.get_instance(connection)
-        value = context.get_flag_value(SERVER_ENABLE_FLAG, default_value=False)
-        return _as_bool(value)
+        return _server_flag_enabled(connection)
     except Exception:
         return False
+
+
+def _server_flag_enabled(connection: Connection) -> bool:
+    session: Any = connection.session
+    # databricks-sql-connector 4.7.0 replaced get_instance(connection)/get_flag_value.
+    if hasattr(session, "feature_flags"):
+        context = session.feature_flags
+        return context is not None and context.get_bool(SERVER_ENABLE_FLAG)
+    factory: Any = FeatureFlagsContextFactory
+    context = factory.get_instance(connection)
+    return _as_bool(context.get_flag_value(SERVER_ENABLE_FLAG, default_value=False))
 
 
 def is_eligible_command() -> bool:
