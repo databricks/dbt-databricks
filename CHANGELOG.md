@@ -3,6 +3,7 @@
 ### Features
 
 - Accept `use_materialization_v2` as a model config, so a project or an individual table or incremental model can choose between the atomic `CREATE OR REPLACE TABLE … AS SELECT` path and the create-then-insert path; models that don't set it follow the `use_materialization_v2` behavior flag, and view models ignore it ([#1718](https://github.com/databricks/dbt-databricks/pull/1718))
+- Report `rows_affected` from Databricks cursor rowcount in adapter responses, so table and incremental runs display the real row count instead of a follow-up tag/constraint/row-filter statement's empty response. ([#1632](https://github.com/databricks/dbt-databricks/pull/1632) resolves [#351](https://github.com/databricks/dbt-databricks/issues/351), partially resolves [#1607](https://github.com/databricks/dbt-databricks/issues/1607))
 
 ### Fixes
 
@@ -26,7 +27,6 @@
 
 ### Features
 
-- Report `rows_affected` from Databricks cursor rowcount in adapter responses, so table and incremental runs display the real row count instead of a follow-up tag/constraint/row-filter statement's empty response. ([#1632](https://github.com/databricks/dbt-databricks/pull/1632) resolves [#351](https://github.com/databricks/dbt-databricks/issues/351), partially resolves [#1607](https://github.com/databricks/dbt-databricks/issues/1607))
 - Merge `tblproperties` additively across config hierarchy levels instead of replacing parent values (thanks @canbekley!) ([#1353](https://github.com/databricks/dbt-databricks/pull/1353))
 - Add opt-in invocation telemetry for eligible commands, enabled with `connection_parameters.enable_dbt_telemetry`, that reports aggregate POST_PARSE model configuration statistics and POST_RUN outcomes when the workspace server flag allows it or `connection_parameters.force_enable_dbt_telemetry` is set ([#1647](https://github.com/databricks/dbt-databricks/pull/1647), [#1682](https://github.com/databricks/dbt-databricks/pull/1682), [#1648](https://github.com/databricks/dbt-databricks/pull/1648), [#1665](https://github.com/databricks/dbt-databricks/pull/1665))
 - **BREAKING for some view models:** Views use one materialization regardless of `use_materialization_v2`, so with the flag off `view_update_via_alter` now alters Unity Catalog views in place and fails on Hive metastore views, grants apply after tags, and view replacement calls `get_create_view_as_sql` overrides ([#1737](https://github.com/databricks/dbt-databricks/pull/1737))
