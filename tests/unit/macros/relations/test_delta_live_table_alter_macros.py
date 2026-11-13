@@ -8,6 +8,7 @@ from dbt.adapters.databricks.relation import DatabricksRelationType
 from dbt.adapters.databricks.relation_configs.base import DatabricksRelationChangeSet
 from dbt.adapters.databricks.relation_configs.column_tags import ColumnTagsConfig
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
+from dbt.adapters.databricks.relation_configs.expectations import ExpectationsConfig
 from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByConfig
 from dbt.adapters.databricks.relation_configs.refresh import RefreshConfig
 from dbt.adapters.databricks.relation_configs.row_filter import RowFilterConfig
@@ -224,7 +225,16 @@ class TestStreamingTableAlterTags(MacroTestBase):
 
     @pytest.fixture
     def macro_folders_to_load(self) -> list:
-        return ["macros/relations/streaming_table", "macros/relations", "macros"]
+        return [
+            "macros/relations/streaming_table",
+            "macros/relations",
+            "macros",
+            "macros/relations/components",
+        ]
+
+    @pytest.fixture
+    def databricks_template_names(self) -> list:
+        return ["expectations.sql"]
 
     @pytest.fixture(autouse=True)
     def streaming_table_relation(self, relation):
@@ -237,6 +247,7 @@ class TestStreamingTableAlterTags(MacroTestBase):
             "tblproperties": TblPropertiesConfig(tblproperties={}),
             "comment": CommentConfig(),
             "refresh": RefreshConfig(),
+            "expectations": ExpectationsConfig(),
         }
 
     def test_in_place_alter_appends_only_tag_changes(self, template_bundle, context):
@@ -298,6 +309,51 @@ class TestStreamingTableAlterTags(MacroTestBase):
         context["get_set_tag_statements"].assert_called_once_with(
             template_bundle.relation, None, None
         )
+
+    @pytest.mark.parametrize(
+        "expectations, column_list, tblproperties",
+        [
+            (ExpectationsConfig(), "", {"key": "value"}),
+            (
+                ExpectationsConfig(
+                    expectations=[
+                        {"name": "positive", "expression": "v > 0", "on_violation": "drop"}
+                    ],
+                    fingerprint="abc123",
+                ),
+                "(constraint positive expect (v > 0) on violation drop row)",
+                {"key": "value", "dbt.expectations_hash": "abc123"},
+            ),
+        ],
+    )
+    def test_in_place_alter_redeclares_expectations(
+        self, template_bundle, context, expectations, column_list, tblproperties
+    ):
+        configuration_changes = DatabricksRelationChangeSet(
+            changes={
+                **self.structural_changes(),
+                "tblproperties": TblPropertiesConfig(tblproperties={"key": "value"}),
+                "expectations": expectations,
+            },
+            requires_full_refresh=False,
+        )
+        context["liquid_clustered_cols"] = Mock(return_value="cluster by (id)")
+        context["get_create_sql_tblproperties"] = Mock(return_value="")
+
+        sql = self.run_macro(
+            template_bundle.template,
+            "get_create_st_internal",
+            template_bundle.relation,
+            configuration_changes,
+            "select * from stream src",
+        )
+
+        self.assert_sql_equal(
+            sql,
+            "create or refresh streaming table `some_database`.`some_schema`.`some_table` "
+            f"{column_list} cluster by (id) as select * from stream src",
+        )
+        context["get_create_sql_tblproperties"].assert_called_once_with(tblproperties)
 
     def test_configuration_replacement_appends_full_desired_tags(
         self, template_bundle, context, config

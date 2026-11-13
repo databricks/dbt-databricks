@@ -9,6 +9,7 @@ from dbt.adapters.databricks.relation_configs.column_tags import ColumnTagsProce
 from dbt.adapters.databricks.relation_configs.comment import (
     CommentProcessor,
 )
+from dbt.adapters.databricks.relation_configs.expectations import ExpectationsProcessor
 from dbt.adapters.databricks.relation_configs.liquid_clustering import (
     LiquidClusteringProcessor,
 )
@@ -39,6 +40,7 @@ class MaterializedViewConfig(DatabricksRelationConfigBase):
         TagsProcessor,
         ColumnTagsProcessor,
         RowFilterProcessor,
+        ExpectationsProcessor,
     ]
 
     def get_changeset(

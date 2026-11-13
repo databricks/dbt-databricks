@@ -67,9 +67,16 @@
 
 {% macro get_create_st_internal(relation, configuration_changes, sql) %}
   {%- set partition_by = configuration_changes.changes["partition_by"].partition_by -%}
-  {%- set tblproperties = configuration_changes.changes["tblproperties"].tblproperties -%}
+  {%- set expectations = configuration_changes.changes["expectations"] -%}
+  {%- set tblproperties = {} -%}
+  {%- do tblproperties.update(configuration_changes.changes["tblproperties"].tblproperties) -%}
+  {%- do tblproperties.update(expectations.tblproperties) -%}
   {%- set comment = configuration_changes.changes["comment"].comment -%}
   CREATE OR REFRESH STREAMING TABLE {{ relation.render() }}
+    {#-- CREATE OR REFRESH is declarative, so expectations left out here would be dropped. --#}
+    {%- if expectations.expectations %}
+    ({{ get_create_sql_expectations(expectations) }})
+    {%- endif %}
     {% if partition_by -%}
         {{ get_create_sql_partition_by(partition_by) }}
     {%- endif %}

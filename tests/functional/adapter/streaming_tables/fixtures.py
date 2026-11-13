@@ -45,6 +45,13 @@ manual_tagged_streaming_table = streaming_table.replace(
     "materialized='streaming_table', databricks_tags={'classification': 'internal'},",
 )
 
+streaming_table_with_expectations = streaming_table.replace(
+    "materialized='streaming_table',",
+    "materialized='streaming_table', expectations=["
+    "{'name': 'not_two', 'expression': 'id <> 2', 'on_violation': 'drop'}, "
+    "{'name': 'non_negative', 'expression': 'value >= 0', 'on_violation': 'fail'}],",
+)
+
 complex_streaming_table = """
 {{ config(
     materialized='streaming_table',
@@ -63,6 +70,12 @@ select * from stream {{ ref('my_seed') }}
 tagged_streaming_table = complex_streaming_table.replace(
     "partition_by='id',",
     "partition_by='id', databricks_tags={'classification': 'internal'},",
+)
+
+complex_streaming_table_with_expectations = complex_streaming_table.replace(
+    "partition_by='id',",
+    "partition_by='id', expectations=["
+    "{'name': 'positive_value', 'expression': 'value > 0', 'on_violation': 'drop'}],",
 )
 
 streaming_table_schema = """
