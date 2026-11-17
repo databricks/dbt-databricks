@@ -1,17 +1,17 @@
-## dbt-databricks 1.13.1 (TBD)
+## dbt-databricks 1.13.1 (Nov 18, 2026)
 
 ### Features
 
-- Accept `use_materialization_v2` as a model config, so a project or an individual table or incremental model can choose between the atomic `CREATE OR REPLACE TABLE … AS SELECT` path and the create-then-insert path; models that don't set it follow the `use_materialization_v2` behavior flag, and view models ignore it ([#1718](https://github.com/databricks/dbt-databricks/pull/1718))
+- Let table and incremental models override the `use_materialization_v2` behavior flag through project or model config; views ignore this config ([#1718](https://github.com/databricks/dbt-databricks/pull/1718))
 
 ### Fixes
 
-- Stop `dbt docs generate` from emitting a `RuntimeWarning` per schema for catalog metadata columns that are absent from the results (thanks @emrekabalcii!) ([#1749](https://github.com/databricks/dbt-databricks/pull/1749) resolves [#1748](https://github.com/databricks/dbt-databricks/issues/1748))
-- Unset tags on columns that a `table` model or incremental full refresh removes, so replacing a relation no longer fails with `CANNOT_DROP_TAGGED_COLUMN` when a removed column carries a governed tag ([#1707](https://github.com/databricks/dbt-databricks/pull/1707) resolves [#1684](https://github.com/databricks/dbt-databricks/issues/1684))
-- Load wide seeds faster by resolving the placeholder and `parquet` cast types once per seed instead of once per cell ([#1722](https://github.com/databricks/dbt-databricks/pull/1722))
-- Stop materialized views with a Compatibility Mode location from being dropped and lost when `use_safer_relation_operations` or a `partition_by` change would recreate them at the same location. Unchanged partitions now use `CREATE OR REPLACE`, and location or partition changes fail before anything is dropped ([#1727](https://github.com/databricks/dbt-databricks/pull/1727))
+- Stop `dbt docs generate` warnings about absent catalog metadata columns (thanks @emrekabalcii!) ([#1749](https://github.com/databricks/dbt-databricks/pull/1749) resolves [#1748](https://github.com/databricks/dbt-databricks/issues/1748))
+- Prevent `CANNOT_DROP_TAGGED_COLUMN` when table replacements or incremental full refreshes remove columns with governed tags ([#1707](https://github.com/databricks/dbt-databricks/pull/1707) resolves [#1684](https://github.com/databricks/dbt-databricks/issues/1684))
+- Load wide seeds faster, including `parquet` seeds ([#1722](https://github.com/databricks/dbt-databricks/pull/1722))
+- Protect materialized views rebuilt with a Compatibility Mode location: use `CREATE OR REPLACE` for compatible partitions, and reject incompatible location or partition changes before dropping ([#1727](https://github.com/databricks/dbt-databricks/pull/1727))
 - Make the new table visible to the model's post-hooks and the rest of the run when a table or incremental model replaces a view, materialized view, or streaming table ([#1708](https://github.com/databricks/dbt-databricks/pull/1708))
-- Stop `dbt clone` from failing on Unity Catalog tables with a row filter or column mask, which can't be shallow-cloned; they now clone as a view over the deferred table that applies its policies for whoever queries it ([#1745](https://github.com/databricks/dbt-databricks/pull/1745))
+- Clone Unity Catalog tables with row filters or column masks as views that apply the source table's policies to each querying user ([#1745](https://github.com/databricks/dbt-databricks/pull/1745))
 - Stop `dbt clone` from failing on materialized views with a row filter and streaming tables with a row filter or column mask ([#1744](https://github.com/databricks/dbt-databricks/pull/1744))
 - Stop `dbt clone` from failing on views whose enforced contract changed since the deferred state ([#1742](https://github.com/databricks/dbt-databricks/pull/1742) resolves [#1349](https://github.com/databricks/dbt-databricks/issues/1349))
 - Make `is_string()`, `is_number()`, `is_integer()`, `is_float()`, and `is_numeric()` recognize Databricks column types such as `string`, `int`, `tinyint`, and `decimal(p,s)` ([#1726](https://github.com/databricks/dbt-databricks/pull/1726) resolves [#1380](https://github.com/databricks/dbt-databricks/issues/1380))
@@ -21,9 +21,17 @@
 ### Under the Hood
 
 - Allow `dbt-core` 1.12.7 ([#1776](https://github.com/databricks/dbt-databricks/pull/1776))
-- Allow `databricks-sql-connector` 4.9.x (upper bound raised to `<4.9.1`) and keep the `enable_dbt_telemetry` server-flag check working with connector 4.7.0+ ([#1768](https://github.com/databricks/dbt-databricks/pull/1768))
-- Raise the `databricks-sdk` upper bound to `<0.158.0` ([#1770](https://github.com/databricks/dbt-databricks/pull/1770))
-- Allow `packaging` 26.x (upper bound raised to `<27.0`) ([#1777](https://github.com/databricks/dbt-databricks/pull/1777))
+- Allow `databricks-sql-connector` 4.9.0 and preserve the telemetry server-flag check with connector 4.7.0+ ([#1768](https://github.com/databricks/dbt-databricks/pull/1768))
+- Raise the `databricks-sdk` upper bound to `<0.158.0` ([#1770](https://github.com/databricks/dbt-databricks/pull/1770) resolves [#1761](https://github.com/databricks/dbt-databricks/issues/1761))
+- Allow `packaging` 26.x ([#1777](https://github.com/databricks/dbt-databricks/pull/1777))
+- Preserve the original SQL error in `run_sql_for_tests` (test-only, no runtime impact) ([#1774](https://github.com/databricks/dbt-databricks/pull/1774))
+- Let view lifecycle tests tolerate authentication warnings (test-only, no runtime impact) ([#1769](https://github.com/databricks/dbt-databricks/pull/1769))
+- Make snapshot constraint tests safe to retry (test-only, no runtime impact) ([#1735](https://github.com/databricks/dbt-databricks/pull/1735))
+- Make seed parsing tests safe to retry after interrupted setup (test-only, no runtime impact) ([#1757](https://github.com/databricks/dbt-databricks/pull/1757))
+- Show thread stacks before a hung unit test times out (test-only, no runtime impact) ([#1715](https://github.com/databricks/dbt-databricks/pull/1715))
+- Refresh integration test timings for shard balancing (test-only, no runtime impact) ([#1719](https://github.com/databricks/dbt-databricks/pull/1719))
+- Cache pip for offline Python setup in CI (CI-only, no runtime impact) ([#1760](https://github.com/databricks/dbt-databricks/pull/1760))
+- Fix snapshot flow diagram rendering (docs-only, no runtime impact) ([#1705](https://github.com/databricks/dbt-databricks/pull/1705))
 
 ## dbt-databricks 1.13.0 (Oct 29, 2026)
 
