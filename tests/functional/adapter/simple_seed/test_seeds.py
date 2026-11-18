@@ -75,8 +75,16 @@ class TestSimpleSeedEnabledViaConfig(BaseSimpleSeedEnabledViaConfig):
     pass
 
 
-class TestSeedParsing(DatabricksSetup, BaseSeedParsing):
-    pass
+class TestSeedParsing(RerunSafeMixin, DatabricksSetup, BaseSeedParsing):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("model", "seed")
+
+    @pytest.fixture(scope="class", autouse=True)
+    def setUp(self, project):
+        project.run_sql("drop table if exists {schema}.seed_expected")
+        project.run_sql(fixtures.seeds__expected_table_sql)
+        project.run_sql(fixtures.seeds__expected_insert_sql)
 
 
 class TestSimpleSeedWithBOM(BaseSimpleSeedWithBOM):

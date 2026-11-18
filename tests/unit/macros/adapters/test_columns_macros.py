@@ -1,7 +1,9 @@
+from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
 
 import pytest
 
+from dbt.adapters.databricks.handle import SqlUtils
 from tests.unit.macros.base import MacroTestBase
 
 
@@ -54,3 +56,18 @@ class TestColumnsMacros(MacroTestBase):
             "ADD COLUMNS (col1 INT, col2 STRING)"
         )
         self.assert_sql_equal(result, expected_sql)
+
+    @pytest.mark.parametrize("select_sql", ["select 1 as id", " select 1 as id;\n"])
+    def test_get_empty_subquery_sql_strips_terminal_semicolon(
+        self, template_bundle, context, select_sql
+    ):
+        context["adapter"].clean_sql = SqlUtils.clean_sql
+        context["dbt"] = SimpleNamespace(
+            default__get_empty_subquery_sql=lambda sql, header: f"wrapped({sql})"
+        )
+
+        result = self.run_macro(
+            template_bundle.template, "databricks__get_empty_subquery_sql", select_sql
+        )
+
+        assert result == "wrapped(select 1 as id)"

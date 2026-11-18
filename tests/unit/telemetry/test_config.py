@@ -27,26 +27,29 @@ class TestOptIn:
         assert config.is_enabled(_creds({"enable_dbt_telemetry": True})) is True
 
 
+SERVER_GATE_CASES = pytest.mark.parametrize(
+    "connection_parameters, server_flag, expected",
+    [
+        pytest.param({"enable_dbt_telemetry": True}, "true", True, id="client_and_server_on"),
+        pytest.param({"enable_dbt_telemetry": True}, "false", False, id="server_off"),
+        pytest.param({"enable_dbt_telemetry": True}, "null", False, id="server_unset_null"),
+        pytest.param({}, "true", False, id="client_off"),
+        pytest.param(
+            {"force_enable_dbt_telemetry": True}, "false", True, id="force_ignores_server"
+        ),
+        pytest.param(
+            {"enable_dbt_telemetry": True},
+            RuntimeError("fetch failed"),
+            False,
+            id="fetch_failure_off",
+        ),
+    ],
+)
+
+
 class TestServerGate:
-    @pytest.mark.parametrize(
-        "connection_parameters, server_flag, expected",
-        [
-            pytest.param({"enable_dbt_telemetry": True}, "true", True, id="client_and_server_on"),
-            pytest.param({"enable_dbt_telemetry": True}, "false", False, id="server_off"),
-            pytest.param({"enable_dbt_telemetry": True}, "null", False, id="server_unset_null"),
-            pytest.param({}, "true", False, id="client_off"),
-            pytest.param(
-                {"force_enable_dbt_telemetry": True}, "false", True, id="force_ignores_server"
-            ),
-            pytest.param(
-                {"enable_dbt_telemetry": True},
-                RuntimeError("fetch failed"),
-                False,
-                id="fetch_failure_off",
-            ),
-        ],
-    )
-    def test_enabled_for_connection(
+    @SERVER_GATE_CASES
+    def test_enabled_for_connection_legacy_api(
         self, monkeypatch, connection_parameters, server_flag, expected
     ):
         context = Mock()
@@ -57,8 +60,37 @@ class TestServerGate:
         monkeypatch.setattr(
             config.FeatureFlagsContextFactory, "get_instance", Mock(return_value=context)
         )
+        connection = SimpleNamespace(session=SimpleNamespace())
 
-        assert config.is_enabled_for_connection(_creds(connection_parameters), Mock()) is expected
+        assert (
+            config.is_enabled_for_connection(_creds(connection_parameters), connection) is expected
+        )
+
+    @SERVER_GATE_CASES
+    def test_enabled_for_connection_session_api(
+        self, monkeypatch, connection_parameters, server_flag, expected
+    ):
+        context = Mock()
+        if isinstance(server_flag, Exception):
+            context.get_bool.side_effect = server_flag
+        else:
+            context.get_bool.return_value = server_flag == "true"
+        get_instance = Mock()
+        monkeypatch.setattr(config.FeatureFlagsContextFactory, "get_instance", get_instance)
+        connection = SimpleNamespace(session=SimpleNamespace(feature_flags=context))
+
+        assert (
+            config.is_enabled_for_connection(_creds(connection_parameters), connection) is expected
+        )
+        get_instance.assert_not_called()
+
+    def test_session_without_feature_flags_is_off(self):
+        connection = SimpleNamespace(session=SimpleNamespace(feature_flags=None))
+
+        assert (
+            config.is_enabled_for_connection(_creds({"enable_dbt_telemetry": True}), connection)
+            is False
+        )
 
 
 class TestCommandEligibility:

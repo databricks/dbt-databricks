@@ -346,3 +346,38 @@ schema_evolution_mv_continue_sql = """
 {{ config(materialized='materialized_view', on_configuration_change='continue') }}
 select * from {{ ref('schema_evolution_base') }}
 """
+
+compatibility_seed_csv = """id,grp
+1,a
+2,b
+"""
+
+compatibility_tblproperties = """
+    tblproperties={
+        'delta.universalFormat.enabledFormats': 'compatibility',
+        'delta.universalFormat.compatibility.location':
+            var('compatibility_location_root') ~ '/' ~ this.identifier,
+    },
+"""
+
+compatibility_safer_mv = (
+    """
+{{ config(
+    materialized='materialized_view',
+    use_safer_relation_operations=true,"""
+    + compatibility_tblproperties
+    + """) }}
+select * from {{ ref('compatibility_seed') }}
+"""
+)
+
+compatibility_partitioned_mv = (
+    """
+{{ config(
+    materialized='materialized_view',
+    partition_by=var('partition_by', ['grp']),"""
+    + compatibility_tblproperties
+    + """) }}
+select * from {{ ref('compatibility_seed') }}
+"""
+)

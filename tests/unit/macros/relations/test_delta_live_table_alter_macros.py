@@ -178,6 +178,44 @@ class TestMaterializedViewAlterTags(MacroTestBase):
         )
         context["refresh_materialized_view"].assert_not_called()
 
+    @pytest.mark.parametrize(
+        "compatibility_rebuild, expected",
+        [
+            (None, ["DROP MATERIALIZED VIEW", "CREATE MATERIALIZED VIEW"]),
+            ("CREATE OR REPLACE MATERIALIZED VIEW", ["CREATE OR REPLACE MATERIALIZED VIEW"]),
+        ],
+    )
+    def test_partition_change_prefers_compatibility_rebuild(
+        self, template_bundle, context, compatibility_rebuild, expected
+    ):
+        existing_relation = Mock()
+        context["get_mv_compatibility_rebuild_sql"] = Mock(return_value=compatibility_rebuild)
+        context["drop_and_create"] = Mock(
+            return_value=["DROP MATERIALIZED VIEW", "CREATE MATERIALIZED VIEW"]
+        )
+        context["get_set_tag_statements"] = Mock(return_value=[])
+        configuration_changes = DatabricksRelationChangeSet(
+            changes={"partition_by": PartitionedByConfig(partition_by=[])},
+            requires_full_refresh=True,
+        )
+
+        statements = capture_macro_return(
+            context,
+            template_bundle.template,
+            "databricks__get_alter_materialized_view_as_sql",
+            template_bundle.relation,
+            configuration_changes,
+            "select 1 as id",
+            existing_relation,
+            None,
+            None,
+        )
+
+        assert statements == expected
+        context["get_mv_compatibility_rebuild_sql"].assert_called_once_with(
+            existing_relation, template_bundle.relation, "select 1 as id"
+        )
+
 
 class TestStreamingTableAlterTags(MacroTestBase):
     @pytest.fixture

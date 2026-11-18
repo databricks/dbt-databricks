@@ -922,6 +922,14 @@ Note: The default is `databricks_uc_sql_endpoint` if not specified.
 Tests generate detailed debug logs by default.
 Searching for red text in these logs is often sufficient to determine what has gone wrong, especially if your test failure mentions that dbt did not reach the expected state.
 
+### Hung or Crashed Unit Tests
+
+The unit commands time out a test after 60s (`--timeout=60 --timeout-method=thread`). The timeout kills the xdist worker, so the failure reads `worker 'gwN' crashed while running '<test id>'` and pytest-timeout's own stack dump is lost with the worker.
+
+To keep a stack, the unit commands also set `-o faulthandler_timeout=45`. If a test is still running at 45s, every thread's stack is printed to the job log under a `Timeout (0:00:45)!` header, before the worker is killed. The hung test's frame appears in the main thread's stack. A test that runs past 45s but finishes still passes; the dump is only diagnostic.
+
+A segfault or other fatal signal also prints a `Fatal Python error` stack, because pytest enables `faulthandler` by default. A worker killed with `SIGKILL` (for example, out of memory) leaves no stack.
+
 ### Test Isolation
 
 For command-line debugging, run individual tests:

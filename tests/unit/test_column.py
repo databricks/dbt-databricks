@@ -81,6 +81,56 @@ class TestColumnStatics:
         assert DatabricksColumn.format_add_column_list(columns) == expected
 
 
+class TestTypePredicates:
+    @pytest.mark.parametrize(
+        "dtype, expected",
+        [
+            ("string", "string"),
+            ("STRING", "string"),
+            ("string COLLATE UTF8_LCASE", "string"),
+            ("varchar(10)", "string"),
+            ("char(3)", "string"),
+            ("tinyint", "integer"),
+            ("byte", "integer"),
+            ("smallint", "integer"),
+            ("short", "integer"),
+            ("int", "integer"),
+            ("INTEGER", "integer"),
+            ("bigint", "integer"),
+            ("long", "integer"),
+            ("float", "float"),
+            ("real", "float"),
+            ("double", "float"),
+            ("decimal", "numeric"),
+            ("decimal(10,2)", "numeric"),
+            ("decimal(38, 0)", "numeric"),
+            ("DEC(5,1)", "numeric"),
+            ("numeric(10,2)", "numeric"),
+            ("boolean", None),
+            ("date", None),
+            ("timestamp", None),
+            ("binary", None),
+            ("variant", None),
+            ("array<string>", None),
+            ("map<string,int>", None),
+            ("struct<a:string>", None),
+        ],
+    )
+    def test_type_predicates(self, dtype, expected):
+        column = DatabricksColumn("col", dtype)
+        assert column.is_string() == (expected == "string")
+        assert column.is_integer() == (expected == "integer")
+        assert column.is_float() == (expected == "float")
+        assert column.is_numeric() == (expected == "numeric")
+        assert column.is_number() == (expected in ("integer", "float", "numeric"))
+
+    def test_can_expand_to__strings(self):
+        assert not DatabricksColumn("a", "string").can_expand_to(DatabricksColumn("a", "string"))
+        assert not DatabricksColumn("a", "varchar(10)").can_expand_to(
+            DatabricksColumn("a", "varchar(20)")
+        )
+
+
 # Tests are based on possible JSON output from "DESCRIBE EXTENDED <table> AS JSON"
 # https://docs.databricks.com/aws/en/sql/language-manual/sql-ref-syntax-aux-describe-table#json-formatted-output
 class TestDatabricksColumn:

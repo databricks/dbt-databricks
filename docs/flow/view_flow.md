@@ -1,6 +1,6 @@
 # View Flow
 
-_Last updated: 2026-10-23_
+_Last updated: 2026-10-26_
 
 > Views run one flow; the `use_materialization_v2` behavior flag does not change it. See
 > [flow/README.md](README.md) for the flag. Source:
@@ -43,6 +43,12 @@ flowchart LR
 filters and asserts an enforced contract, so ALTER and no-op runs fail where CREATE would. A
 replacement applies table and column tags after `get_replace_sql`; an in-place alter applies the
 configuration changes returned by relation configuration comparison.
+
+Under `dbt clone` the view is `select *` over the deferred relation, so the contract is not
+asserted. Materialized views, streaming tables, and Unity Catalog tables with a row filter or column
+mask (which can't be shallow-cloned) also clone as views. Under clone only view models reject a
+mask or row-filter config: a clone never applies the current config's policies, and the deferred
+object enforces production's policies for whoever queries the view.
 
 When `view_update_via_alter` is enabled, SQL containing `*` is reapplied even when its text is
 unchanged, so wildcard views pick up upstream column additions. The check uses the compiled SQL
