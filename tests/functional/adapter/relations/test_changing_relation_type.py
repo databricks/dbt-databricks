@@ -84,9 +84,16 @@ REPLACEMENTS = [
     pytest.param(
         "streaming_table", "materialized_view", False, id="streaming-table-to-materialized-view"
     ),
+    pytest.param("view", "table", False, id="view-to-table"),
+    pytest.param("view", "table", True, id="view-to-table-v2"),
+    pytest.param("materialized_view", "table", False, id="materialized-view-to-table"),
+    pytest.param("view", "incremental", False, id="view-to-incremental"),
+    pytest.param("view", "incremental", True, id="view-to-incremental-v2"),
 ]
 
-REFRESHES = ["materialized_view", "streaming_table"]
+REFRESHES = ["materialized_view", "streaming_table", "table"]
+
+SAFELY_REPLACED_TABLE = "safely_replaced_view_to_table"
 
 
 def replaced_relation_name(from_type, to_type, use_materialization_v2):
@@ -114,15 +121,18 @@ class TestReplacedRelationVisibleToPostHook(RerunSafeMixin):
     @pytest.fixture(scope="class")
     def relations_to_reset(self):
         replaced = [replaced_relation_name(*p.values) for p in REPLACEMENTS]
-        return tuple(replaced + [refreshed_relation_name(m) for m in REFRESHES])
+        refreshed = [refreshed_relation_name(m) for m in REFRESHES]
+        return tuple(replaced + refreshed + [SAFELY_REPLACED_TABLE])
 
-    def _build_then_rebuild(self, project, name, from_type, to_type, post_hook):
+    def _build_then_rebuild(self, project, name, from_type, to_type, post_hook, **to_config):
         util.run_dbt(["run", "--select", "replaced_relation_source"])
         util.write_file(fixtures.replaced_relation_sql(from_type), "models", f"{name}.sql")
         util.run_dbt(["run", "--select", name])
 
         util.write_file(
-            fixtures.replaced_relation_sql(to_type, post_hook=post_hook), "models", f"{name}.sql"
+            fixtures.replaced_relation_sql(to_type, post_hook=post_hook, **to_config),
+            "models",
+            f"{name}.sql",
         )
         util.run_dbt(["run", "--select", name])
 
@@ -148,6 +158,19 @@ class TestReplacedRelationVisibleToPostHook(RerunSafeMixin):
         name = refreshed_relation_name(materialized)
         self._build_then_rebuild(
             project, name, materialized, materialized, post_hook="assert_cached_with_owner"
+        )
+
+    def test_post_hook_sees_safely_replaced_table(self, project):
+        util.update_config_file(
+            {"flags": {"use_materialization_v2": True}}, project.project_root, "dbt_project.yml"
+        )
+        self._build_then_rebuild(
+            project,
+            SAFELY_REPLACED_TABLE,
+            "view",
+            "table",
+            post_hook="assert_cached_as_materialized",
+            use_safer_relation_operations=True,
         )
 
 

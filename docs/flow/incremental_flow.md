@@ -1,6 +1,6 @@
 # Incremental Flow
 
-_Last updated: 2026-10-13_
+_Last updated: 2026-10-28_
 
 > Two diagrams follow: **Existing** is the default path, **New** is used when the
 > `use_materialization_v2` behavior flag is enabled. See [flow/README.md](README.md) for what the
@@ -18,7 +18,8 @@ flowchart LR
     EXIST -- yes --> REPLACE{"Existing is view, materialized view, or streaming table;\nor full refresh?"}
     REPLACE -- yes --> DROPNEEDED{"Not a replaceable Delta/Iceberg relation,\nor existing is a shallow clone?"}
     DROPNEEDED -- yes --> DROP[Drop existing relation]
-    DROPNEEDED -- no --> RECREATE[Create or replace target from model]
+    DROPNEEDED -- no --> UNSET["SQL only: unset tags on existing<br/>columns the new query removes"]
+    UNSET --> RECREATE[Create or replace target from model]
     DROP --> RECREATE
     RECREATE --> WASVIEW{Existing was a view?}
     WASVIEW -- no --> REPLACECONST[Persist constraints]
@@ -67,7 +68,8 @@ flowchart LR
     SAFEPATH -- yes --> SAFE["safe_relation_replace:<br/>create_table_at staging; back up existing;<br/>rename staging; drop backup;<br/>rename staged PK/FK; drop intermediate"]
     SAFEPATH -- no --> DROPNEEDED{"Existing is not replaceable Delta/Iceberg,\nor is a shallow clone?"}
     DROPNEEDED -- yes --> DROP[Drop existing relation]
-    DROPNEEDED -- no --> CREATE
+    DROPNEEDED -- no --> UNSET["Unset tags on existing columns<br/>absent from the intermediate relation"]
+    UNSET --> CREATE
     DROP --> CREATE
 
     SHOULDREPLACE -- no --> DYNAMIC[Set dynamic overwrite mode when required]
@@ -95,3 +97,8 @@ path, V2 does not call `persist_docs` — relation and column comments are handl
 
 Safe staging renames tables, which Databricks rejects for Hive metastore managed Delta tables on
 S3 unless `spark.databricks.delta.alterTable.rename.enabledOnAWS` is set on the cluster.
+
+When a replacement drops the existing relation or uses safe staging, it calls
+`cache_replaced_relation` (see the [replace flow](replace_flow.md)) after creating the table and
+before post-hooks, so the model's post-hooks and later lookups in the run see the new table.
+Incremental merges and `CREATE OR REPLACE` rebuilds do not touch the relation cache.

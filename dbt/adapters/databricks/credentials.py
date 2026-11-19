@@ -34,6 +34,50 @@ MAX_NT_PASSWORD_SIZE = 1280
 SPA_CLIENT_FIXED_TIME_LIMIT_ERROR = "AADSTS700084"
 _CONFIG_INITIALIZATION_LOCK = threading.Lock()
 
+# Mirrors Fusion's `dbt debug` redaction, but also splits on `.` because Spark confs such as
+# `fs.s3a.secret.key` are dot-separated.
+CREDENTIAL_KEY_SEGMENTS = frozenset(
+    {
+        "password",
+        "token",
+        "secret",
+        "secrets",
+        "passphrase",
+        "key",
+        "keyfile",
+        "credential",
+        "credentials",
+    }
+)
+NON_CREDENTIAL_KEYS = frozenset({"token_uri", "access_key_id", "client_cert_key"})
+CREDENTIAL_KEY_SEPARATOR_REGEX = re.compile(r"[_.]")
+
+
+def _is_credential_key(key: Any) -> bool:
+    if not isinstance(key, str):
+        return False
+    key = key.lower()
+    return key not in NON_CREDENTIAL_KEYS and any(
+        segment in CREDENTIAL_KEY_SEGMENTS for segment in CREDENTIAL_KEY_SEPARATOR_REGEX.split(key)
+    )
+
+
+def _redact_nested_credentials(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {
+            k: _redact_nested_credentials(v) for k, v in value.items() if not _is_credential_key(k)
+        }
+    if isinstance(value, (list, tuple)):
+        return [_redact_nested_credentials(item) for item in value]
+    return value
+
+
+class _DebugRedactedDict(dict[str, Any]):
+    # `dbt debug` prints `str()` of connection values. dbt-core's partial-parse profile hash uses
+    # their `pprint` form (`dict.__repr__`), which must keep every value so edits trigger a reparse.
+    def __str__(self) -> str:
+        return str(_redact_nested_credentials(self))
+
 
 @dataclass
 class DatabricksCredentials(Credentials):
@@ -223,7 +267,11 @@ class DatabricksCredentials(Credentials):
             aliases = [k for k, v in self._ALIASES.items() if v in connection_keys]
         for key in itertools.chain(self._connection_keys(with_aliases=with_aliases), aliases):
             if key in as_dict:
-                yield key, as_dict[key]
+                value = as_dict[key]
+                # `with_aliases=True` builds the Jinja `target` context, which keeps raw values.
+                if not with_aliases and isinstance(value, dict):
+                    value = _DebugRedactedDict(value)
+                yield key, value
 
     def _connection_keys(self, *, with_aliases: bool = False) -> tuple[str, ...]:
         # Assuming `DatabricksCredentials.connection_info(self, *, with_aliases: bool = False)`

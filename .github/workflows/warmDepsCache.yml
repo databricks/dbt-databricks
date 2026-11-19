@@ -19,6 +19,7 @@ on:
       - "requirements.lowest-direct.txt"
       - "pyproject.toml"
       - ".pre-commit-config.yaml"
+      - ".github/workflows/warmDepsCache.yml"
   schedule:
     - cron: "0 6 * * *" # Daily at 06:00 UTC
   workflow_dispatch:
@@ -121,12 +122,12 @@ jobs:
               print(dep)
           " > /tmp/runtime-deps.txt
           hatch -e verify-min-deps run pip download --dest ~/.cache/pip-wheelhouse \
-            hatchling setuptools wheel twine check-wheel-contents \
+            pip hatchling setuptools wheel twine check-wheel-contents \
             -r /tmp/runtime-deps.txt
           hatch -e verify-min-deps run pip download --dest ~/.cache/pip-wheelhouse \
             --no-deps --require-hashes -r requirements.lowest-direct.txt
 
-      - name: Verify all hatch envs can be re-created offline from the cache
+      - name: Verify Python bootstrap and hatch environments offline
         # Prune + recreate offline mirrors what PR jobs do. Failing here
         # means the cache is incomplete; fail warm, not the fork PR.
         env:
@@ -135,6 +136,9 @@ jobs:
           PIP_FIND_LINKS: /home/runner/.cache/pip-wheelhouse
         run: |
           set -euo pipefail
+          # setup-python reinstalls pip when the requested Python is absent from the runner.
+          python -m venv "$RUNNER_TEMP/python-bootstrap"
+          "$RUNNER_TEMP/python-bootstrap/bin/python" -m pip install --upgrade --force-reinstall pip
           hatch env prune
           hatch env create default
           hatch env create test.py3.10
