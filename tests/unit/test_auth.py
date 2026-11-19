@@ -97,7 +97,9 @@ class TestEnsureConfigTriggersTheRightAuth:
         creds = DatabricksCredentials(token="foo", **_COMMON_KWARGS)
         with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
             creds.authenticate().config
-            mock_config.assert_called_once_with(host=_COMMON_KWARGS["host"], token="foo")
+            mock_config.assert_called_once_with(
+                host=_COMMON_KWARGS["host"], token="foo", auth_type="pat"
+            )
 
     def test_explicit_azure_uses_azure_client_secret(self):
         creds = DatabricksCredentials(
@@ -200,7 +202,9 @@ class TestEnsureConfigTriggersTheRightAuth:
         )
         with mock.patch("dbt.adapters.databricks.credentials.Config") as mock_config:
             creds.authenticate().config
-            mock_config.assert_called_once_with(host=_COMMON_KWARGS["host"], token="foo")
+            mock_config.assert_called_once_with(
+                host=_COMMON_KWARGS["host"], token="foo", auth_type="pat"
+            )
 
     def test_falls_back_to_second_method_when_first_raises(self):
         creds = DatabricksCredentials(
@@ -343,6 +347,20 @@ class TestTokenAuth:
 
         raw = credentialManager._config.as_dict()
         assert raw is not None
+
+        assert headers == {"Authorization": "Bearer foo"}
+
+    def test_token_ignores_oauth_credentials_in_environment(self, monkeypatch):
+        monkeypatch.setenv("DATABRICKS_CLIENT_ID", "env-client-id")
+        monkeypatch.setenv("DATABRICKS_CLIENT_SECRET", "env-client-secret")
+        creds = DatabricksCredentials(
+            host="my.cloud.databricks.com",
+            token="foo",
+            database="andre",
+            http_path="http://foo",
+            schema="dbt",
+        )
+        headers = creds.authenticate().credentials_provider()()
 
         assert headers == {"Authorization": "Bearer foo"}
 
