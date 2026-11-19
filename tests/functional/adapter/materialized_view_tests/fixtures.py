@@ -31,6 +31,15 @@ def query_relation_type(project, relation: BaseRelation) -> Optional[str]:
             return DatabricksRelationType.View
 
 
+def query_created_time(project, relation: BaseRelation):
+    return project.run_sql(
+        f"select created from `{relation.database}`.`information_schema`.`tables`"
+        f" where table_schema = '{relation.schema}'"
+        f" and table_name = '{relation.identifier}'",
+        fetch="one",
+    )[0]
+
+
 materialized_view = """
 {{ config(
     materialized='materialized_view',
@@ -45,6 +54,12 @@ materialized_view = """
 ) }}
 select * from {{ ref('my_seed') }}
 """
+
+materialized_view_with_expectations = materialized_view.replace(
+    "partition_by='id',",
+    "partition_by='id', expectations=["
+    "{'name': 'not_two', 'expression': 'id <> 2', 'on_violation': 'drop'}],",
+)
 
 materialized_view_schema = """
 version: 2

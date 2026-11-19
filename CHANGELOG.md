@@ -3,6 +3,7 @@
 ### Features
 
 - Accept `use_materialization_v2` as a model config, so a project or an individual table or incremental model can choose between the atomic `CREATE OR REPLACE TABLE … AS SELECT` path and the create-then-insert path; models that don't set it follow the `use_materialization_v2` behavior flag, and view models ignore it ([#1718](https://github.com/databricks/dbt-databricks/pull/1718))
+- Add an `expectations` model config that declares data quality expectations on streaming tables and materialized views, each with an optional `on_violation` of `warn`, `drop`, or `fail`; a change to `expectations` follows `on_configuration_change` (thanks @stevenayers!) (resolves [#634](https://github.com/databricks/dbt-databricks/issues/634))
 
 ### Fixes
 

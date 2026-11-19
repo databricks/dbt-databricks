@@ -1,6 +1,6 @@
 # Materialized View Flow
 
-_Last updated: 2026-10-01_
+_Last updated: 2026-11-13_
 
 > Materialized views do **not** use the `use_materialization_v2` flag — there is a single path.
 > Source: `dbt/include/databricks/macros/materializations/materialized_view.sql`.
@@ -68,3 +68,6 @@ Notes:
   desired table and column tag state through
   `get_set_tag_statements` while building the statement list. The execution macro only executes
   that completed list.
+- `expectations` are rendered by `get_create_materialized_view_as_sql` and diffed through the
+  `dbt.expectations_hash` table property (see the [streaming table](streaming_table_flow.md)
+  notes). A change to them is a configuration change that replaces the materialized view.

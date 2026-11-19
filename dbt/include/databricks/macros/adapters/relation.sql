@@ -55,11 +55,14 @@
   {% do return([false, new_relation]) %}
 {% endmacro %}
 
-{% macro get_column_and_constraints_sql(relation, columns) %}
+{% macro get_column_and_constraints_sql(relation, columns, expectations='') %}
   (
     {% for column in columns %}
-      {{ column.render_for_create() }}{% if not loop.last or relation.create_constraints %},{% endif %}
+      {{ column.render_for_create() }}{% if not loop.last or expectations or relation.create_constraints %},{% endif %}
     {% endfor %}
+    {%- if expectations %}
+      {{ expectations }}{% if relation.create_constraints %},{% endif %}
+    {%- endif %}
     {% if relation.create_constraints %}
       {{ relation.render_constraints_for_create() }}
     {% endif %}

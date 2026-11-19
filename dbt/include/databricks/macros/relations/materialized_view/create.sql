@@ -5,7 +5,10 @@
   {% endif %}
   {%- set materialized_view = adapter.get_config_from_model(config.model) -%}
   {%- set partition_by = materialized_view.config["partition_by"].partition_by -%}
-  {%- set tblproperties = materialized_view.config["tblproperties"].tblproperties -%}
+  {%- set expectations = materialized_view.config["expectations"] -%}
+  {%- set tblproperties = {} -%}
+  {%- do tblproperties.update(materialized_view.config["tblproperties"].tblproperties) -%}
+  {%- do tblproperties.update(expectations.tblproperties) -%}
   {%- set comment = materialized_view.config["comment"].comment -%}
   {%- set refresh = materialized_view.config["refresh"] -%}
 
@@ -36,7 +39,7 @@
   {%- set target_relation = relation.enrich(columns_and_constraints[1]) -%}
 
   create or replace materialized view {{ target_relation.render() }}
-    {{ get_column_and_constraints_sql(target_relation, columns_and_constraints[0]) }}
+    {{ get_column_and_constraints_sql(target_relation, columns_and_constraints[0], get_create_sql_expectations(expectations)) }}
     {{ get_create_row_filter_clause(target_relation) }}
     {{ get_create_sql_partition_by(partition_by) }}
     {{ liquid_clustered_cols() }}

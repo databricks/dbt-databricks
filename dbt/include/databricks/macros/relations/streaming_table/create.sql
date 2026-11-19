@@ -5,7 +5,10 @@
 {% macro databricks__get_create_streaming_table_as_sql(relation, sql) -%}
   {%- set streaming_table = adapter.get_config_from_model(config.model) -%}
   {%- set partition_by = streaming_table.config["partition_by"].partition_by -%}
-  {%- set tblproperties = streaming_table.config["tblproperties"].tblproperties -%}
+  {%- set expectations = streaming_table.config["expectations"] -%}
+  {%- set tblproperties = {} -%}
+  {%- do tblproperties.update(streaming_table.config["tblproperties"].tblproperties) -%}
+  {%- do tblproperties.update(expectations.tblproperties) -%}
   {%- set comment = streaming_table.config["comment"].comment -%}
   {%- set refresh = streaming_table.config["refresh"] -%}
 
@@ -30,7 +33,7 @@
 
   {#-- We don't enrich the relation with model constraints because they are not supported for streaming tables --#}
   CREATE STREAMING TABLE {{ relation.render() }}
-    {{ get_column_and_constraints_sql(relation, columns_and_constraints[0]) }}
+    {{ get_column_and_constraints_sql(relation, columns_and_constraints[0], get_create_sql_expectations(expectations)) }}
     {{ get_create_row_filter_clause(relation) }}
     {{ get_create_sql_partition_by(partition_by) }}
     {{ liquid_clustered_cols() }}

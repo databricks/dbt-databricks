@@ -4,6 +4,7 @@ from agate import Table
 
 from dbt.adapters.databricks.relation_configs.column_tags import ColumnTagsConfig
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
+from dbt.adapters.databricks.relation_configs.expectations import ExpectationsConfig
 from dbt.adapters.databricks.relation_configs.liquid_clustering import LiquidClusteringConfig
 from dbt.adapters.databricks.relation_configs.partitioning import PartitionedByConfig
 from dbt.adapters.databricks.relation_configs.query import QueryConfig
@@ -55,6 +56,7 @@ class TestStreamingTableConfig:
                 ),
                 "query": QueryConfig(query="select * from foo"),
                 "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(),
             }
         )
 
@@ -88,6 +90,7 @@ class TestStreamingTableConfig:
                 ),
                 "query": QueryConfig(query="select * from foo"),
                 "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(),
             }
         )
 
@@ -103,6 +106,7 @@ class TestStreamingTableConfig:
                 "column_tags": ColumnTagsConfig(set_column_tags={}),
                 "query": QueryConfig(query="select * from foo"),
                 "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(),
             }
         )
         new = StreamingTableConfig(
@@ -116,6 +120,7 @@ class TestStreamingTableConfig:
                 "column_tags": ColumnTagsConfig(set_column_tags={}),
                 "query": QueryConfig(query="select * from foo"),
                 "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(),
             }
         )
 
@@ -139,6 +144,7 @@ class TestStreamingTableConfig:
                 "column_tags": ColumnTagsConfig(set_column_tags={}),
                 "query": QueryConfig(query="select * from foo"),
                 "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(),
             }
         )
         new = StreamingTableConfig(
@@ -152,6 +158,7 @@ class TestStreamingTableConfig:
                 "column_tags": ColumnTagsConfig(set_column_tags={}),
                 "query": QueryConfig(query="select * from foo"),
                 "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(),
             }
         )
 
@@ -175,6 +182,7 @@ class TestStreamingTableConfig:
                 "column_tags": ColumnTagsConfig(set_column_tags={}),
                 "query": QueryConfig(query="select * from foo"),
                 "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(),
             }
         )
         new = StreamingTableConfig(
@@ -190,6 +198,7 @@ class TestStreamingTableConfig:
                 ),
                 "query": QueryConfig(query="select * from foo"),
                 "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(),
             }
         )
 
@@ -209,7 +218,69 @@ class TestStreamingTableConfig:
             ),
             "query": QueryConfig(query="select * from foo"),
             "row_filter": RowFilterConfig(),
+            "expectations": ExpectationsConfig(),
         }
+
+    def test_get_changeset__expectations_are_applied_in_place(self):
+        old = StreamingTableConfig(
+            config={
+                "partition_by": PartitionedByConfig(partition_by=[]),
+                "liquid_clustering": LiquidClusteringConfig(),
+                "comment": CommentConfig(),
+                "tblproperties": TblPropertiesConfig(tblproperties={}),
+                "refresh": RefreshConfig(),
+                "tags": TagsConfig(set_tags={}),
+                "column_tags": ColumnTagsConfig(set_column_tags={}),
+                "query": QueryConfig(query="select stream(1 as id)"),
+                "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(fingerprint="old"),
+            }
+        )
+        expectations = ExpectationsConfig(
+            expectations=[{"name": "not_two", "expression": "id <> 2", "on_violation": "drop"}],
+            fingerprint="new",
+        )
+        new = StreamingTableConfig(config={**old.config, "expectations": expectations})
+
+        changeset = new.get_changeset(old)
+
+        assert changeset is not None
+        assert not changeset.requires_full_refresh
+        assert changeset.changes["expectations"] == expectations
+
+    def test_get_changeset__unrelated_change_retains_expectations(self):
+        # The relation only reports the fingerprint, and CREATE OR REFRESH drops any expectation it
+        # does not declare, so the changeset must carry the model's list.
+        old = StreamingTableConfig(
+            config={
+                "partition_by": PartitionedByConfig(partition_by=[]),
+                "liquid_clustering": LiquidClusteringConfig(),
+                "comment": CommentConfig(),
+                "tblproperties": TblPropertiesConfig(tblproperties={}),
+                "refresh": RefreshConfig(),
+                "tags": TagsConfig(set_tags={}),
+                "column_tags": ColumnTagsConfig(set_column_tags={}),
+                "query": QueryConfig(query="select stream(1 as id)"),
+                "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(fingerprint="same"),
+            }
+        )
+        expectations = ExpectationsConfig(
+            expectations=[{"name": "not_two", "expression": "id <> 2", "on_violation": "drop"}],
+            fingerprint="same",
+        )
+        new = StreamingTableConfig(
+            config={
+                **old.config,
+                "tblproperties": TblPropertiesConfig(tblproperties={"prop": "1"}),
+                "expectations": expectations,
+            }
+        )
+
+        changeset = new.get_changeset(old)
+
+        assert changeset is not None
+        assert changeset.changes["expectations"] == expectations
 
     def test_get_changeset__tags_include_only_changed_keys(self):
         old = StreamingTableConfig(
@@ -223,6 +294,7 @@ class TestStreamingTableConfig:
                 "column_tags": ColumnTagsConfig(set_column_tags={}),
                 "query": QueryConfig(query="select stream(1 as id)"),
                 "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(),
             }
         )
         new = StreamingTableConfig(
@@ -260,6 +332,7 @@ class TestStreamingTableConfig:
                 ),
                 "query": QueryConfig(query="select stream(1 as id)"),
                 "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(),
             }
         )
         new = StreamingTableConfig(

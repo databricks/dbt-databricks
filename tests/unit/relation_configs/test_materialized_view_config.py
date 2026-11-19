@@ -6,6 +6,7 @@ from dbt.adapters.databricks.impl import MaterializedViewAPI
 from dbt.adapters.databricks.relation import DatabricksRelation, DatabricksRelationType
 from dbt.adapters.databricks.relation_configs.column_tags import ColumnTagsConfig
 from dbt.adapters.databricks.relation_configs.comment import CommentConfig
+from dbt.adapters.databricks.relation_configs.expectations import ExpectationsConfig
 from dbt.adapters.databricks.relation_configs.liquid_clustering import LiquidClusteringConfig
 from dbt.adapters.databricks.relation_configs.materialized_view import (
     MaterializedViewConfig,
@@ -65,6 +66,7 @@ class TestMaterializedViewConfig:
                     set_column_tags={"col_a": {"classification": "internal"}}
                 ),
                 "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(),
             }
         )
 
@@ -98,6 +100,7 @@ class TestMaterializedViewConfig:
                     set_column_tags={"col_a": {"classification": "internal"}}
                 ),
                 "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(),
             }
         )
 
@@ -113,6 +116,7 @@ class TestMaterializedViewConfig:
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
                 "column_tags": ColumnTagsConfig(set_column_tags={}),
                 "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(),
             }
         )
         new = MaterializedViewConfig(
@@ -126,6 +130,7 @@ class TestMaterializedViewConfig:
                 "tags": TagsConfig(set_tags={"a": "b", "c": "d"}),
                 "column_tags": ColumnTagsConfig(set_column_tags={}),
                 "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(),
             }
         )
 
@@ -143,6 +148,7 @@ class TestMaterializedViewConfig:
                 "tags": TagsConfig(set_tags={}),
                 "column_tags": ColumnTagsConfig(set_column_tags={}),
                 "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(),
             }
         )
         new = MaterializedViewConfig(
@@ -158,6 +164,7 @@ class TestMaterializedViewConfig:
                     set_column_tags={"col_a": {"classification": "internal"}}
                 ),
                 "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(),
             }
         )
 
@@ -173,6 +180,33 @@ class TestMaterializedViewConfig:
             ),
         }
 
+    def test_get_changeset__expectations_require_full_refresh(self):
+        old = MaterializedViewConfig(
+            config={
+                "partition_by": PartitionedByConfig(partition_by=[]),
+                "liquid_clustering": LiquidClusteringConfig(),
+                "comment": CommentConfig(),
+                "tblproperties": TblPropertiesConfig(tblproperties={}),
+                "refresh": RefreshConfig(),
+                "query": QueryConfig(query="select 1 as id"),
+                "tags": TagsConfig(set_tags={}),
+                "column_tags": ColumnTagsConfig(set_column_tags={}),
+                "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(fingerprint="old"),
+            }
+        )
+        expectations = ExpectationsConfig(
+            expectations=[{"name": "not_two", "expression": "id <> 2", "on_violation": "drop"}],
+            fingerprint="new",
+        )
+        new = MaterializedViewConfig(config={**old.config, "expectations": expectations})
+
+        changeset = new.get_changeset(old)
+
+        assert changeset is not None
+        assert changeset.requires_full_refresh
+        assert changeset.changes == {"expectations": expectations}
+
     def test_get_changeset__tags_include_only_changed_keys(self):
         old = MaterializedViewConfig(
             config={
@@ -185,6 +219,7 @@ class TestMaterializedViewConfig:
                 "tags": TagsConfig(set_tags={"unchanged": "value", "updated": "old"}),
                 "column_tags": ColumnTagsConfig(set_column_tags={}),
                 "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(),
             }
         )
         new = MaterializedViewConfig(
@@ -221,6 +256,7 @@ class TestMaterializedViewConfig:
                     }
                 ),
                 "row_filter": RowFilterConfig(),
+                "expectations": ExpectationsConfig(),
             }
         )
         new = MaterializedViewConfig(

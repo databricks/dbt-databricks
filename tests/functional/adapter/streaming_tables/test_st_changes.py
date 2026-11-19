@@ -204,6 +204,22 @@ class TestStreamingTableChangesApply(StreamingTableChanges):
         # the in-place update must not drop the rest of the config
         assert results.config["partition_by"].partition_by == ["id"]
 
+    def test_expectations_change_is_applied(self, project, my_streaming_table):
+        initial_model = util.get_model_file(project, my_streaming_table)
+        ids_query = f"select id from {my_streaming_table} order by id"
+
+        util.set_model_file(
+            project, my_streaming_table, fixtures.complex_streaming_table_with_expectations
+        )
+        project.run_sql("insert into {database}.{schema}.my_seed values (4, -1), (5, 500)")
+        util.run_dbt(["run", "--models", my_streaming_table.name])
+        assert project.run_sql(ids_query, fetch="all") == [(1,), (2,), (3,), (5,)]
+
+        util.set_model_file(project, my_streaming_table, initial_model)
+        project.run_sql("insert into {database}.{schema}.my_seed values (6, -1)")
+        util.run_dbt(["run", "--models", my_streaming_table.name])
+        assert project.run_sql(ids_query, fetch="all") == [(1,), (2,), (3,), (5,), (6,)]
+
 
 @pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")

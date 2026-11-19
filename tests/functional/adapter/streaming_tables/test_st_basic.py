@@ -262,6 +262,19 @@ class TestStreamingTablesBasic(TestStreamingTablesMixin):
         assert results[0][0] == "my_struct"
         assert results[0][1] == full_data_type
 
+    def test_streaming_table_expectations(self, project, my_streaming_table, my_seed):
+        util.set_model_file(project, my_streaming_table, fixtures.streaming_table_with_expectations)
+        util.run_dbt(["run", "--models", my_streaming_table.identifier, "--full-refresh"])
+        ids_query = f"select id from {my_streaming_table} order by id"
+        assert project.run_sql(ids_query, fetch="all") == [(1,), (3,)]
+        properties = project.run_sql(f"show tblproperties {my_streaming_table}", fetch="all")
+        assert "dbt.expectations_hash" in {row[0] for row in properties}
+
+        self.insert_record(project, my_seed, (4, -1))
+        util.run_dbt(["run", "--models", my_streaming_table.identifier], expect_pass=False)
+
+        assert project.run_sql(ids_query, fetch="all") == [(1,), (3,)]
+
 
 @pytest.mark.dlt
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
