@@ -22,6 +22,23 @@
   {%- endif -%}
 {% endmacro %}
 
+{% macro deep_clone_requires_drop(existing_relation, external) %}
+  {#-
+    A deep clone is a regular managed or external table, so drop non-tables, shallow clones,
+    and known UC tables whose managed or external type would change. Keep the rest so
+    `create or replace` re-clones them in place.
+  -#}
+  {%- if existing_relation is none -%}
+    {{ return(False) }}
+  {%- elif not existing_relation.is_table or existing_relation.is_shallow_clone -%}
+    {{ return(True) }}
+  {%- elif existing_relation.databricks_table_type is none -%}
+    {{ return(False) }}
+  {%- else -%}
+    {{ return(existing_relation.is_external_table != external) }}
+  {%- endif -%}
+{% endmacro %}
+
 {% macro clone_source_has_policies(relation) %}
   {#- UC rejects a shallow clone of a table with a row filter or column mask -#}
   {%- if relation.is_hive_metastore() -%}
@@ -63,4 +80,13 @@
     shallow clone {{ defer_relation.render() }}
     {{ location_clause(catalog_relation) }}
 
+{% endmacro %}
+
+{% macro create_or_replace_deep_clone(this_relation, defer_relation, catalog_relation) %}
+    create or replace
+    table {{ this_relation.render() }}
+    deep clone {{ defer_relation.render() }}
+    {%- if catalog_relation.location is not none %}
+    location '{{ catalog_relation.location }}'
+    {%- endif %}
 {% endmacro %}

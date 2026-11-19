@@ -89,6 +89,43 @@ class TestCloneStrategies(MacroTestBase):
 
         assert expected == sql
 
+    def test_create_or_replace_deep_clone(self, template_bundle, s_relation):
+        sql = self.run_macro(
+            template_bundle.template,
+            "create_or_replace_deep_clone",
+            template_bundle.relation,
+            s_relation,
+            unity_relation(file_format=constants.DELTA_FILE_FORMAT),
+        )
+
+        expected = self.clean_sql(
+            "create or replace "
+            f"table {template_bundle.relation.render()} "
+            f"deep clone {s_relation.render()}"
+        )
+
+        assert expected == sql
+
+    def test_create_or_replace_deep_clone_location(
+        self, template_bundle, catalog_relation, s_relation
+    ):
+        sql = self.run_macro(
+            template_bundle.template,
+            "create_or_replace_deep_clone",
+            template_bundle.relation,
+            s_relation,
+            catalog_relation,
+        )
+
+        expected = self.clean_sql(
+            "create or replace "
+            f"table {template_bundle.relation.render()} "
+            f"deep clone {s_relation.render()} "
+            f"location '{catalog_relation.location}'"
+        )
+
+        assert expected == sql
+
 
 class TestCloneRequiresDrop(MacroTestBase):
     @pytest.fixture(scope="class")
@@ -143,6 +180,76 @@ class TestCloneRequiresDrop(MacroTestBase):
         # reset Delta history and break in-place full-refresh shallow clones.
         relation = self._relation(is_table=True, is_shallow_clone=False, databricks_table_type=None)
         assert self._requires_drop(template_bundle, relation) == "False"
+
+
+class TestDeepCloneRequiresDrop(MacroTestBase):
+    @pytest.fixture(scope="class")
+    def template_name(self) -> str:
+        return "strategies.sql"
+
+    @pytest.fixture(scope="class")
+    def macro_folders_to_load(self) -> list:
+        return ["macros/materializations/clone", "macros/relations", "macros"]
+
+    def _relation(self, is_table=True, databricks_table_type="managed"):
+        relation = Mock(spec=DatabricksRelation)
+        relation.is_table = is_table
+        relation.is_shallow_clone = databricks_table_type in (
+            "managed_shallow_clone",
+            "external_shallow_clone",
+        )
+        relation.is_external_table = databricks_table_type == "external"
+        relation.databricks_table_type = databricks_table_type
+        return relation
+
+    def _requires_drop(self, template_bundle, existing_relation, external):
+        rendered = self.run_macro_raw(
+            template_bundle.template, "deep_clone_requires_drop", existing_relation, external
+        )
+        return rendered.strip()
+
+    @pytest.mark.parametrize("external", [False, True])
+    def test_no_existing_relation_does_not_require_drop(self, template_bundle, external):
+        assert self._requires_drop(template_bundle, None, external) == "False"
+
+    @pytest.mark.parametrize("external", [False, True])
+    def test_view_requires_drop(self, template_bundle, external):
+        relation = self._relation(is_table=False, databricks_table_type=None)
+        assert self._requires_drop(template_bundle, relation, external) == "True"
+
+    @pytest.mark.parametrize(
+        "databricks_table_type", ["managed_shallow_clone", "external_shallow_clone"]
+    )
+    @pytest.mark.parametrize("external", [False, True])
+    def test_shallow_clone_requires_drop(self, template_bundle, databricks_table_type, external):
+        relation = self._relation(databricks_table_type=databricks_table_type)
+        assert self._requires_drop(template_bundle, relation, external) == "True"
+
+    @pytest.mark.parametrize(
+        "databricks_table_type, external",
+        [("managed", False), ("external", True)],
+    )
+    def test_same_table_type_does_not_require_drop(
+        self, template_bundle, databricks_table_type, external
+    ):
+        # A deep clone re-clones a table of its own type in place.
+        relation = self._relation(databricks_table_type=databricks_table_type)
+        assert self._requires_drop(template_bundle, relation, external) == "False"
+
+    @pytest.mark.parametrize(
+        "databricks_table_type, external",
+        [("managed", True), ("external", False)],
+    )
+    def test_changed_table_type_requires_drop(
+        self, template_bundle, databricks_table_type, external
+    ):
+        relation = self._relation(databricks_table_type=databricks_table_type)
+        assert self._requires_drop(template_bundle, relation, external) == "True"
+
+    @pytest.mark.parametrize("external", [False, True])
+    def test_unknown_table_type_does_not_require_drop(self, template_bundle, external):
+        relation = self._relation(databricks_table_type=None)
+        assert self._requires_drop(template_bundle, relation, external) == "False"
 
 
 class TestCloneSourceHasPolicies(MacroTestBase):

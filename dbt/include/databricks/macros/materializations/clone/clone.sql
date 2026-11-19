@@ -38,13 +38,24 @@
         and not clone_source_has_policies(other_existing_relation) -%}
 
       {%- set target_relation = this.incorporate(type='table') -%}
-      {% if clone_requires_drop(existing_relation) %}
-        {{ log("Dropping relation " ~ existing_relation ~ " because it cannot be replaced by a shallow clone in place (table type " ~ existing_relation.databricks_table_type ~ ")") }}
+      {%- set deep_clone = config.get('deep_clone', False) -%}
+      {%- if deep_clone -%}
+        {%- set catalog_relation = adapter.build_catalog_relation(config.model) -%}
+        {%- set requires_drop = deep_clone_requires_drop(existing_relation, catalog_relation.location is not none) -%}
+      {%- else -%}
+        {%- set requires_drop = clone_requires_drop(existing_relation) -%}
+      {%- endif -%}
+      {% if requires_drop %}
+        {{ log("Dropping relation " ~ existing_relation ~ " because it cannot be replaced by a " ~ ("deep" if deep_clone else "shallow") ~ " clone in place (table type " ~ existing_relation.databricks_table_type ~ ")") }}
         {{ drop_relation_if_exists(existing_relation) }}
       {% endif %}
 
       -- as a general rule, data platforms that can clone tables can also do atomic 'create or replace'
-      {% if other_existing_relation.is_external_table %}
+      {% if deep_clone %}
+          {% call statement('main') %}
+              {{ create_or_replace_deep_clone(target_relation, defer_relation, catalog_relation) }}
+          {% endcall %}
+      {% elif other_existing_relation.is_external_table %}
           {% call statement('main') %}
               {{ create_or_replace_clone_external(target_relation, defer_relation) }}
           {% endcall %}
