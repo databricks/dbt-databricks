@@ -21,6 +21,7 @@ from dbt.adapters.databricks.handle import (
     SqlUtils,
     _get_job_run_context,
 )
+from dbt.adapters.databricks.logging import pysql_handler, pysql_logger
 
 
 def _build_session_headers(
@@ -574,6 +575,37 @@ class TestDatabricksHandle:
         handle.close()
         cursor.close.assert_called_once()
         conn.close.assert_called_once()
+
+    @pytest.mark.parametrize("close_fails", [False, True])
+    def test_finalizer_closes_without_dbt_events(self, conn, cursor, close_fails):
+        def close_resource():
+            pysql_logger.critical("Connector cleanup")
+            if close_fails:
+                raise RuntimeError("Cleanup failed")
+
+        conn.cursor.return_value = cursor
+        conn.close.side_effect = close_resource
+        cursor.execute.return_value = cursor
+        cursor.close.side_effect = close_resource
+        handle = DatabricksHandle(conn, True)
+        wrapped_cursor = handle.execute("select 1")
+
+        with (
+            patch("dbt.adapters.databricks.handle.logger") as handle_logger,
+            patch("dbt.adapters.databricks.utils.logger") as utils_logger,
+            patch.object(pysql_handler, "logger") as connector_logger,
+        ):
+            del handle
+
+            cursor.close.assert_called_once()
+            conn.close.assert_called_once()
+            assert wrapped_cursor.open is False
+            assert not handle_logger.mock_calls
+            assert not utils_logger.mock_calls
+            assert not connector_logger.mock_calls
+
+            pysql_logger.critical("After cleanup")
+            connector_logger.critical.assert_called_once_with("After cleanup")
 
 
 class TestGetJobRunContext:

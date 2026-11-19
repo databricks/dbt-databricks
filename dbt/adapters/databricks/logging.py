@@ -1,3 +1,6 @@
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from logging import Handler, LogRecord, getLogger
 from typing import Union
 
@@ -6,6 +9,16 @@ from dbt.adapters.events.logging import AdapterLogger
 from dbt.adapters.databricks.global_state import GlobalState
 
 logger = AdapterLogger("Databricks")
+_suppress_connector_dbt_events = ContextVar("suppress_connector_dbt_events", default=False)
+
+
+@contextmanager
+def suppress_connector_dbt_events() -> Iterator[None]:
+    token = _suppress_connector_dbt_events.set(True)
+    try:
+        yield
+    finally:
+        _suppress_connector_dbt_events.reset(token)
 
 
 class DbtCoreHandler(Handler):
@@ -27,4 +40,5 @@ pysql_logger_level = GlobalState.get_connector_log_level()
 pysql_logger.setLevel(pysql_logger_level)
 
 pysql_handler = DbtCoreHandler(dbt_logger=dbt_adapter_logger, level=pysql_logger_level)
+pysql_handler.addFilter(lambda _: not _suppress_connector_dbt_events.get())
 pysql_logger.addHandler(pysql_handler)

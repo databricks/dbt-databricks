@@ -1,3 +1,9 @@
+## dbt-databricks next (TBD)
+
+### Fixes
+
+- Prevent a Python deadlock when the adapter finalizes a Databricks SQL connection during date parsing.
+
 ## dbt-databricks 1.13.1 (Nov 19, 2026)
 
 ### Features
