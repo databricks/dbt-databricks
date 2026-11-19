@@ -45,3 +45,36 @@ class TestCommentMacros(MacroTestBase):
         """An unescaped backslash is read by Databricks as the start of an escape sequence."""
         result = self.run_macro(template_bundle.template, "get_create_sql_comment", r"C:\temp")
         self.assert_sql_equal(result, r"comment 'c:\\temp'")
+
+    @pytest.mark.parametrize(
+        "comment, expected",
+        [
+            pytest.param(r"Matches ^\d+$", r"comment 'matches ^\\d+$'", id="regex"),
+            pytest.param("Ends with \\", r"comment 'ends with \\'", id="trailing_backslash"),
+        ],
+    )
+    def test_get_create_sql_comment__escapes_backslashes(self, template_bundle, comment, expected):
+        result = self.run_macro(template_bundle.template, "get_create_sql_comment", comment)
+        self.assert_sql_equal(expected, result)
+
+
+class TestCommentClauseMacros(MacroTestBase):
+    @pytest.fixture(scope="class")
+    def template_name(self) -> str:
+        return "comment.sql"
+
+    @pytest.fixture(scope="class")
+    def macro_folders_to_load(self) -> list:
+        return ["macros/relations"]
+
+    @pytest.fixture(scope="class")
+    def databricks_template_names(self) -> list:
+        return ["components/comment.sql"]
+
+    def test_comment_clause__escapes_backslashes(self, config, template_bundle):
+        config["persist_docs"] = {"relation": True}
+        template_bundle.context["model"].description = r"Bob\'s ^\d"
+
+        result = self.run_macro(template_bundle.template, "databricks__comment_clause")
+
+        self.assert_sql_equal(r"comment 'bob\\\'s ^\\d'", result)

@@ -50,6 +50,27 @@ class TestRenderForCreate:
         column.comment = "this is a 'column'"
         assert column.render_for_create() == "`id` INT COMMENT 'this is a \\'column\\''"
 
+    @pytest.mark.parametrize(
+        "comment, expected",
+        [
+            pytest.param(r"Matches ^\d+$", r"`id` INT COMMENT 'Matches ^\\d+$'", id="regex"),
+            pytest.param(
+                r"Lives in C:\tmp\new",
+                r"`id` INT COMMENT 'Lives in C:\\tmp\\new'",
+                id="windows_path",
+            ),
+            pytest.param(
+                "Ends with \\", r"`id` INT COMMENT 'Ends with \\'", id="trailing_backslash"
+            ),
+            pytest.param(
+                r"Bob\'s ^\d", r"`id` INT COMMENT 'Bob\\\'s ^\\d'", id="backslash_and_quote"
+            ),
+        ],
+    )
+    def test_render_for_create__escapes_backslashes(self, column, comment, expected):
+        column.comment = comment
+        assert column.render_for_create() == expected
+
 
 class TestColumnStatics:
     @pytest.mark.parametrize(
