@@ -1,6 +1,6 @@
 # Table Flow
 
-_Last updated: 2026-10-28_
+_Last updated: 2026-11-18_
 
 > Two diagrams follow: **V1** is the default path, **V2** is used when the `use_materialization_v2`
 > behavior flag is enabled. See [flow/README.md](README.md) for what the flag is and how the
@@ -28,7 +28,7 @@ flowchart LR
     TAGS --> COLTAGS[Apply column tags]
     COLTAGS --> DOCS[Persist docs]
     DOCS --> CONSTRAINTS[Persist constraints]
-    CONSTRAINTS --> OPT[Run optimize for zorder / liquid_clustered_by]
+    CONSTRAINTS --> OPT[Run optimize for zorder / liquid clustering, skipped for auto_liquid_cluster and PO-enabled liquid tables unless skip_optimize is false]
     OPT --> POST[Run post-hooks]
 ```
 
@@ -56,7 +56,7 @@ flowchart LR
 
     CREATE --> GRANTS[Apply grants]
     SAFE --> GRANTS
-    GRANTS --> OPT[Run optimize for zorder / liquid_clustered_by]
+    GRANTS --> OPT[Run optimize for zorder / liquid clustering, skipped for auto_liquid_cluster and PO-enabled liquid tables unless skip_optimize is false]
     OPT --> PYCLEAN{Python model?}
     PYCLEAN -- yes --> CLEAN[Drop intermediate relation]
     PYCLEAN -- no --> POST[Run post-hooks]

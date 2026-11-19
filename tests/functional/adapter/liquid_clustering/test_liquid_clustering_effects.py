@@ -21,27 +21,97 @@ def get_clustering_columns(project, identifier):
 
 
 def get_history_operations(project, identifier):
+    """Operations run by the test user, excluding Predictive Optimization's own maintenance."""
     rows = project.run_sql(
-        f"select operation from (describe history {{database}}.{{schema}}.{identifier})",
+        f"select operation from (describe history {{database}}.{{schema}}.{identifier})"
+        " where userName = current_user()",
         fetch="all",
     )
     return [row[0] for row in rows]
 
 
+def set_schema_predictive_optimization(project, enabled):
+    action = "enable" if enabled else "disable"
+    project.run_sql(f"alter schema {{database}}.{{schema}} {action} predictive optimization")
+    rows = project.run_sql("describe schema extended {database}.{schema}", fetch="all")
+    state = next(row[1] for row in rows if row[0] == "Predictive Optimization")
+    assert state.upper().startswith(action.upper())
+
+
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
-class TestTableLiquidClusteringEffect:
-    """V1 table CTAS with liquid_clustered_by must produce a clustered table and OPTIMIZE it."""
+class TestLiquidClusteringPredictiveOptimizationEffect(RerunSafeMixin):
+    """With Predictive Optimization enabled, liquid-clustered models are left to Predictive
+    Optimization instead of an inline OPTIMIZE, on the first build and on rebuilds, unless
+    skip_optimize=false opts back in."""
 
     @pytest.fixture(scope="class")
     def models(self):
         return {
             "table_liquid_cluster.sql": fixtures.table_liquid_cluster_sql,
+            "incremental_liquid_cluster.sql": fixtures.liquid_cluster_sql,
+            "table_force_optimize.sql": fixtures.table_force_optimize_sql,
+            "auto_force_optimize.sql": fixtures.auto_liquid_cluster_force_optimize_sql,
         }
 
-    def test_clustering_columns_set(self, project):
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return (
+            "table_liquid_cluster",
+            "incremental_liquid_cluster",
+            "table_force_optimize",
+            "auto_force_optimize",
+        )
+
+    def test_optimize_left_to_predictive_optimization(self, project):
+        set_schema_predictive_optimization(project, enabled=True)
         util.run_dbt(["run"])
-        assert get_clustering_columns(project, "table_liquid_cluster") == ["id"]
-        assert "OPTIMIZE" in get_history_operations(project, "table_liquid_cluster")
+
+        for identifier in ("table_liquid_cluster", "incremental_liquid_cluster"):
+            assert get_clustering_columns(project, identifier) == ["id"]
+            assert "OPTIMIZE" not in get_history_operations(project, identifier)
+        assert "OPTIMIZE" in get_history_operations(project, "table_force_optimize")
+
+        util.run_dbt(["run"])
+
+        for identifier in ("table_liquid_cluster", "incremental_liquid_cluster"):
+            assert get_clustering_columns(project, identifier) == ["id"]
+            assert "OPTIMIZE" not in get_history_operations(project, identifier)
+        # Second append creates a second file so CLUSTER BY AUTO OPTIMIZE commits a history entry.
+        assert "OPTIMIZE" in get_history_operations(project, "auto_force_optimize")
+
+
+@pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
+class TestLiquidClusteringWithoutPredictiveOptimizationEffect(RerunSafeMixin):
+    """With Predictive Optimization disabled, liquid_clustered_by models still get an inline
+    OPTIMIZE after materialization, including when auto_liquid_cluster is also set."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "table_liquid_cluster.sql": fixtures.table_liquid_cluster_sql,
+            "incremental_liquid_cluster.sql": fixtures.liquid_cluster_sql,
+            "table_explicit_over_auto.sql": fixtures.table_explicit_over_auto_sql,
+        }
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return (
+            "table_liquid_cluster",
+            "incremental_liquid_cluster",
+            "table_explicit_over_auto",
+        )
+
+    def test_optimize_runs_inline(self, project):
+        set_schema_predictive_optimization(project, enabled=False)
+        util.run_dbt(["run"])
+
+        for identifier in (
+            "table_liquid_cluster",
+            "incremental_liquid_cluster",
+            "table_explicit_over_auto",
+        ):
+            assert get_clustering_columns(project, identifier) == ["id"]
+            assert "OPTIMIZE" in get_history_operations(project, identifier)
 
 
 @pytest.mark.skip_profile("databricks_uc_cluster", "databricks_cluster")
