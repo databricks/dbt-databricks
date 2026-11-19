@@ -26,14 +26,14 @@
   {{ log("Applying column masks to relation " ~ relation) }}
   {%- if column_masks.unset_column_masks %}
     {%- for column in column_masks.unset_column_masks -%}
-      {%- call statement('main') -%}
+      {%- call statement('apply_column_masks') -%}
         {{ alter_drop_column_mask(relation, column) }}
       {%- endcall -%}
     {%- endfor -%}
   {%- endif %}
   {%- if column_masks.set_column_masks %}
     {%- for column, mask in column_masks.set_column_masks.items() -%}
-      {%- call statement('main') -%}
+      {%- call statement('apply_column_masks') -%}
         {{ alter_set_column_mask(relation, column, mask) }}
       {%- endcall -%}
     {%- endfor -%}

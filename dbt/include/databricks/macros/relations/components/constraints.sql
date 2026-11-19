@@ -96,21 +96,21 @@
   {#- The diff holds unordered sets; sort so the emitted statement order is stable across runs. -#}
   {%- if constraints.unset_constraints %}
     {%- for constraint in constraints.unset_constraints | sort(attribute='name') -%}
-      {%- call statement('main') -%}
+      {%- call statement('apply_constraints') -%}
         {{ alter_unset_constraint(relation, constraint) }}
       {%- endcall -%}
     {%- endfor -%}
   {%- endif %}
   {%- if constraints.unset_non_nulls %}
     {%- for column in constraints.unset_non_nulls | sort -%}
-      {%- call statement('main') -%}
+      {%- call statement('apply_constraints') -%}
         {{ alter_unset_non_null_constraint(relation, column) }}
       {%- endcall -%}
     {%- endfor -%}
   {%- endif %}
   {%- if constraints.set_non_nulls %}
     {%- for column in constraints.set_non_nulls | sort -%}
-      {%- call statement('main') -%}
+      {%- call statement('apply_constraints') -%}
         {{ alter_set_non_null_constraint(relation, column) }}
       {%- endcall -%}
     {%- endfor -%}
@@ -122,7 +122,7 @@
       {%- do set_constraint_statements.append(alter_set_constraint(relation, constraint)) -%}
     {%- endfor -%}
     {%- for set_constraint_statement in set_constraint_statements | sort -%}
-      {%- call statement('main') -%}
+      {%- call statement('apply_constraints') -%}
         {{ set_constraint_statement }}
       {%- endcall -%}
     {%- endfor -%}

@@ -5,7 +5,7 @@
 
   {{ adapter.rename_relation(staging_relation, existing_relation) }}
 
-  {% call statement('main') %}
+  {% call statement('drop_backup') %}
     {{ get_drop_backup_sql(existing_relation) }}
   {% endcall %}
 

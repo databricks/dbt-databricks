@@ -20,7 +20,7 @@
 {% macro apply_tblproperties(relation, tblproperties) -%}
   {% set tblproperty_statment = databricks__tblproperties_clause(tblproperties) %}
   {% if tblproperty_statment %}
-    {%- call statement('main') -%}
+    {%- call statement('apply_tblproperties') -%}
       ALTER {{ relation.type.render_for_alter() }} {{ relation.render() }} SET {{ tblproperty_statment}}
     {%- endcall -%}
   {% endif %}

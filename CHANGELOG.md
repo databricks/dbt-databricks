@@ -3,6 +3,7 @@
 ### Features
 
 - Accept `use_materialization_v2` as a model config, so a project or an individual table or incremental model can choose between the atomic `CREATE OR REPLACE TABLE … AS SELECT` path and the create-then-insert path; models that don't set it follow the `use_materialization_v2` behavior flag, and view models ignore it ([#1718](https://github.com/databricks/dbt-databricks/pull/1718))
+- Report `rows_affected` from Databricks cursor rowcount in adapter responses, so table and incremental runs display the real row count instead of a follow-up tag/constraint/row-filter statement's empty response. ([#1632](https://github.com/databricks/dbt-databricks/pull/1632) resolves [#351](https://github.com/databricks/dbt-databricks/issues/351), partially resolves [#1607](https://github.com/databricks/dbt-databricks/issues/1607))
 
 ### Fixes
 
