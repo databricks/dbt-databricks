@@ -6,6 +6,7 @@
 
 ### Fixes
 
+- Apply `tblproperties` changes before an incremental run writes to the table instead of after it, so a property such as `delta.enableChangeDataFeed` covers the run that sets it. A run that turns on `delta.appendOnly` while its `merge` updates rows now fails in that run instead of the next one (thanks @gibkim!) ([#1716](https://github.com/databricks/dbt-databricks/pull/1716) resolves [#1121](https://github.com/databricks/dbt-databricks/issues/1121))
 - Stop `dbt docs generate` from emitting a `RuntimeWarning` per schema for catalog metadata columns that are absent from the results (thanks @emrekabalcii!) ([#1749](https://github.com/databricks/dbt-databricks/pull/1749) resolves [#1748](https://github.com/databricks/dbt-databricks/issues/1748))
 - Unset tags on columns that a `table` model or incremental full refresh removes, so replacing a relation no longer fails with `CANNOT_DROP_TAGGED_COLUMN` when a removed column carries a governed tag ([#1707](https://github.com/databricks/dbt-databricks/pull/1707) resolves [#1684](https://github.com/databricks/dbt-databricks/issues/1684))
 - Load wide seeds faster by resolving the placeholder and `parquet` cast types once per seed instead of once per cell ([#1722](https://github.com/databricks/dbt-databricks/pull/1722))
