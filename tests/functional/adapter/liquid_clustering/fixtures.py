@@ -28,6 +28,11 @@ table_force_optimize_sql = """
 select 1 as id, 'Joe' as name
 """
 
+table_explicit_over_auto_sql = """
+{{ config(materialized='table', auto_liquid_cluster=true, liquid_clustered_by='id') }}
+select 1 as id, 'Joe' as name
+"""
+
 auto_liquid_cluster_force_optimize_sql = """
 {{ config(
     materialized='incremental',

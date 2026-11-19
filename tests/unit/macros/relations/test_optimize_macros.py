@@ -126,7 +126,21 @@ class TestOptimizeMacros(MacroTestBase):
         assert result == "run_optimize_stmt"
         context["is_predictive_optimization_enabled"].assert_not_called()
 
-    def test_macros_optimize_external_table_skips_predictive_optimization_check(
+    def test_macros_optimize_explicit_liquid_cluster_takes_precedence_over_auto(
+        self, config, context, template_bundle
+    ):
+        config["auto_liquid_cluster"] = True
+        config["liquid_clustered_by"] = ["foo"]
+        context["is_predictive_optimization_enabled"].return_value = False
+
+        result = self.render_bundle(template_bundle, "optimize")
+
+        assert result == "run_optimize_stmt"
+        context["is_predictive_optimization_enabled"].assert_called_once_with(
+            template_bundle.relation
+        )
+
+    def test_macros_optimize_location_root_still_checks_physical_table_po(
         self, config, context, template_bundle
     ):
         config["liquid_clustered_by"] = ["foo"]
@@ -135,5 +149,30 @@ class TestOptimizeMacros(MacroTestBase):
 
         result = self.render_bundle(template_bundle, "optimize")
 
-        assert result == "run_optimize_stmt"
-        context["is_predictive_optimization_enabled"].assert_not_called()
+        assert result == ""
+        context["is_predictive_optimization_enabled"].assert_called_once_with(
+            template_bundle.relation
+        )
+
+    @pytest.mark.parametrize(
+        "cluster_config,po_enabled",
+        [
+            ({"liquid_clustered_by": ["foo"]}, True),
+            ({"auto_liquid_cluster": True}, False),
+        ],
+    )
+    def test_macros_optimize_warns_on_zorder_when_skipped_for_predictive_optimization(
+        self, cluster_config, po_enabled, config, context, template_bundle
+    ):
+        config["zorder"] = ["bar"]
+        config.update(cluster_config)
+        context["is_predictive_optimization_enabled"].return_value = po_enabled
+        context["exceptions"].warn.return_value = ""
+
+        result = self.render_bundle(template_bundle, "optimize")
+
+        assert result == ""
+        context["exceptions"].warn.assert_called_once_with(
+            "Both zorder and liquid_clustering are set but they are incompatible."
+            " zorder will be ignored."
+        )

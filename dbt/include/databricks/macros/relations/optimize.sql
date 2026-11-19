@@ -8,22 +8,21 @@
   {%- elif var('DATABRICKS_SKIP_OPTIMIZE', 'false')|lower != 'true' and
         var('databricks_skip_optimize', 'false')|lower != 'true' and
         adapter.resolve_file_format(config) == 'delta' -%}
+    {%- set zorder = config.get('zorder', False) -%}
     {%- set liquid_clustered_by = config.get('liquid_clustered_by', False) -%}
     {%- set auto_liquid_cluster = config.get('auto_liquid_cluster', False) -%}
-    {%- if config.get('zorder', False) or liquid_clustered_by or auto_liquid_cluster -%}
+    {%- if zorder or liquid_clustered_by or auto_liquid_cluster -%}
       {#- Predictive Optimization clusters managed liquid tables itself; an explicit skip_optimize=false opts back in. -#}
       {%- set left_to_predictive_optimization = skip_optimize is none and (
-            auto_liquid_cluster
-            or (
-              liquid_clustered_by
-              and not config.get('location_root')
-              and is_predictive_optimization_enabled(relation)
-            )
+            (liquid_clustered_by and is_predictive_optimization_enabled(relation))
+            or (auto_liquid_cluster and not liquid_clustered_by)
           ) -%}
       {%- if not left_to_predictive_optimization -%}
         {%- call statement('run_optimize_stmt') -%}
           {{ get_optimize_sql(relation) }}
         {%- endcall -%}
+      {%- elif zorder -%}
+        {{ exceptions.warn("Both zorder and liquid_clustering are set but they are incompatible. zorder will be ignored.") }}
       {%- endif -%}
     {%- endif -%}
   {%- endif -%}
