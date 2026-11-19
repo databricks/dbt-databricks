@@ -1,7 +1,9 @@
 from unittest.mock import Mock
 
 import pytest
+from dbt_common.exceptions import DbtRuntimeError
 
+from dbt.adapters.databricks.credentials import DatabricksCredentials
 from dbt.adapters.databricks.python_models.python_submissions import (
     AllPurposeClusterPythonJobHelper,
     JobClusterPythonJobHelper,
@@ -66,6 +68,49 @@ class TestAllPurposeClusterPythonJobHelper:
             "Databricks `http_path` or `cluster_id` of an all-purpose cluster is required "
             "for the `all_purpose_cluster` submission method."
         )
+
+
+class TestAllPurposeClusterPythonJobHelperDatabricksCompute:
+    @pytest.fixture
+    def credentials(self, credentials):
+        credentials.http_path = "sql/protocolv1/o/1234567890/default-cluster"
+        credentials.extract_cluster_id.side_effect = DatabricksCredentials.extract_cluster_id
+        credentials.compute = {
+            "alternate_cluster": {"http_path": "sql/protocolv1/o/1234567890/alternate-cluster"},
+            "alternate_warehouse": {"http_path": "/sql/1.0/warehouses/abc"},
+        }
+        return credentials
+
+    def test_init__databricks_compute_cluster(self, parsed_model, credentials):
+        parsed_model["config"] = {"databricks_compute": "alternate_cluster"}
+        helper = AllPurposeClusterPythonJobHelper(parsed_model, credentials)
+        assert helper.cluster_id == "alternate-cluster"
+
+    def test_init__databricks_compute_warehouse_uses_default_cluster(
+        self, parsed_model, credentials
+    ):
+        parsed_model["config"] = {"databricks_compute": "alternate_warehouse"}
+        helper = AllPurposeClusterPythonJobHelper(parsed_model, credentials)
+        assert helper.cluster_id == "default-cluster"
+
+    def test_init__cluster_id_overrides_databricks_compute(self, parsed_model, credentials):
+        parsed_model["config"] = {"databricks_compute": "alternate_cluster", "cluster_id": "test"}
+        helper = AllPurposeClusterPythonJobHelper(parsed_model, credentials)
+        assert helper.cluster_id == "test"
+
+    def test_init__http_path_overrides_databricks_compute(self, parsed_model, credentials):
+        parsed_model["config"] = {
+            "databricks_compute": "alternate_cluster",
+            "http_path": "sql/protocolv1/o/1234567890/http-path-cluster",
+        }
+        helper = AllPurposeClusterPythonJobHelper(parsed_model, credentials)
+        assert helper.cluster_id == "http-path-cluster"
+
+    def test_init__unknown_databricks_compute(self, parsed_model, credentials):
+        parsed_model["config"] = {"databricks_compute": "missing"}
+        with pytest.raises(DbtRuntimeError) as exc:
+            AllPurposeClusterPythonJobHelper(parsed_model, credentials)
+        assert exc.match("Compute resource missing does not exist or does not specify http_path")
 
 
 class TestServerlessClusterPythonJobHelper:

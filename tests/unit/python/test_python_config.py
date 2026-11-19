@@ -47,6 +47,7 @@ class TestParsedPythonModel:
         assert config.python_job_config.additional_task_settings == {}
         assert config.cluster_id is None
         assert config.http_path is None
+        assert config.databricks_compute is None
         assert config.create_notebook is False
 
     def test_parsed_model__valid_model_config(self):

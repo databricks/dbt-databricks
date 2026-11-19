@@ -406,6 +406,16 @@ def model(dbt, spark):
     return spark.createDataFrame([[1, 2]], schema=['id', 'val'])
 """
 
+databricks_compute_python_model = """
+def model(dbt, spark):
+    dbt.config(
+        materialized='table',
+        submission_method='all_purpose_cluster',
+        databricks_compute='alternate_uc_cluster',
+    )
+    return spark.createDataFrame([[1, 2]], schema=['id', 'val'])
+"""
+
 managed_iceberg_python_model = """
 def model(dbt, spark):
     dbt.config(
