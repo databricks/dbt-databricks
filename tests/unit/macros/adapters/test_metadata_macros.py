@@ -226,3 +226,77 @@ class TestMetadataMacros(MacroTestBase):
               AND table_name = 'test_table'
         """  # noqa
         self.assert_sql_equal(result, expected_sql)
+
+
+class TestIsPredictiveOptimizationEnabled(MacroTestBase):
+    @pytest.fixture(scope="class")
+    def template_name(self) -> str:
+        return "adapters/metadata.sql"
+
+    @pytest.fixture(scope="class")
+    def macro_folders_to_load(self) -> list:
+        return ["macros", "macros/adapters"]
+
+    @pytest.fixture
+    def uc_relation(self, relation):
+        relation.is_hive_metastore = Mock(return_value=False)
+        return relation
+
+    def describe_table(self, *rows):
+        return Mock(rows=list(rows))
+
+    @pytest.mark.parametrize(
+        "table_type,predictive_optimization,expected",
+        [
+            ("MANAGED", "ENABLE (inherited from METASTORE ms)", "true"),
+            ("MANAGED", "DISABLE", "false"),
+            ("MANAGED", None, "false"),
+            ("EXTERNAL", "ENABLE (inherited from METASTORE ms)", "false"),
+        ],
+    )
+    def test_reads_detailed_table_information(
+        self, template, context, uc_relation, table_type, predictive_optimization, expected
+    ):
+        context["describe_table_extended_without_caching"] = Mock(
+            return_value=self.describe_table(
+                ("id", "int", None),
+                ("# Detailed Table Information", "", ""),
+                ("Type", table_type, ""),
+                ("Predictive Optimization", predictive_optimization, ""),
+            )
+        )
+
+        result = self.run_macro(template, "is_predictive_optimization_enabled", uc_relation)
+
+        assert result == expected
+        context["describe_table_extended_without_caching"].assert_called_once_with(uc_relation)
+
+    def test_ignores_columns_before_detailed_table_information(
+        self, template, context, uc_relation
+    ):
+        context["describe_table_extended_without_caching"] = Mock(
+            return_value=self.describe_table(
+                ("Type", "MANAGED", None),
+                ("Predictive Optimization", "ENABLE", None),
+                ("# Clustering Information", "", ""),
+                ("# col_name", "data_type", "comment"),
+                ("Type", "MANAGED", None),
+                ("", "", ""),
+                ("# Detailed Table Information", "", ""),
+                ("Type", "EXTERNAL", ""),
+                ("Predictive Optimization", "DISABLE", ""),
+            )
+        )
+
+        result = self.run_macro(template, "is_predictive_optimization_enabled", uc_relation)
+
+        assert result == "false"
+
+    def test_hive_metastore_skips_lookup(self, template, context, relation):
+        relation.is_hive_metastore = Mock(return_value=True)
+        context["describe_table_extended_without_caching"] = Mock()
+
+        result = self.run_macro(template, "is_predictive_optimization_enabled", relation)
+
+        assert result == "false"
+        context["describe_table_extended_without_caching"].assert_not_called()
