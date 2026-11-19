@@ -2,7 +2,7 @@
 
 ### Fixes
 
-- Skip the post-build `OPTIMIZE` on `liquid_clustered_by` tables that Predictive Optimization maintains; `skip_optimize: false` now forces it, also for `auto_liquid_cluster` models ([#TBD](https://github.com/databricks/dbt-databricks/pull/TBD))
+- Skip the post-build `OPTIMIZE` on `liquid_clustered_by` tables that Predictive Optimization maintains; `skip_optimize: false` now forces it, also for `auto_liquid_cluster` models ([#1781](https://github.com/databricks/dbt-databricks/pull/1781))
 
 ## dbt-databricks 1.13.1 (Nov 19, 2026)
 
