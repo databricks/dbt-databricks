@@ -5,6 +5,7 @@ import os
 import re
 import sys
 from collections.abc import Callable, Sequence
+from contextlib import suppress
 from dataclasses import dataclass
 from types import TracebackType
 from typing import TYPE_CHECKING, Any, Optional, TypeVar
@@ -17,7 +18,7 @@ from databricks.sql.client import Connection, Cursor
 from dbt.adapters.databricks import utils
 from dbt.adapters.databricks.__version__ import version as __version__
 from dbt.adapters.databricks.credentials import DatabricksCredentialManager, DatabricksCredentials
-from dbt.adapters.databricks.logging import logger
+from dbt.adapters.databricks.logging import logger, suppress_connector_dbt_events
 from dbt.adapters.databricks.utils import QueryTagsUtils
 
 if TYPE_CHECKING:
@@ -137,6 +138,12 @@ class CursorWrapper:
             self.open = False
             logger.debug(startLog())
             utils.handle_exceptions_as_warning(lambda: cleanup(self._cursor), failLog)
+
+    def _close_on_finalize(self) -> None:
+        if self.open:
+            self.open = False
+            with suppress(Exception):
+                self._cursor.close()
 
     def fetchall(self) -> Sequence[tuple]:
         return self._safe_execute(lambda cursor: cursor.fetchall())
@@ -325,10 +332,15 @@ class DatabricksHandle:
         return self._cursor
 
     def __del__(self) -> None:
-        if self._cursor:
-            self._cursor.close()
-
-        self.close()
+        # GC can interrupt date parsing while dbt event logging needs the same strptime lock.
+        with suppress_connector_dbt_events():
+            cursor = getattr(self, "_cursor", None)
+            if cursor is not None:
+                cursor._close_on_finalize()
+            if getattr(self, "open", False):
+                self.open = False
+                with suppress(Exception):
+                    self._conn.close()
 
     def __str__(self) -> str:
         return f"Connection(session-id={self.session_id})"
