@@ -3,6 +3,7 @@
 ### Features
 
 - Accept `use_materialization_v2` as a model config, so a project or an individual table or incremental model can choose between the atomic `CREATE OR REPLACE TABLE … AS SELECT` path and the create-then-insert path; models that don't set it follow the `use_materialization_v2` behavior flag, and view models ignore it ([#1718](https://github.com/databricks/dbt-databricks/pull/1718))
+- Set function and argument comments from `description` when `persist_docs` is enabled, and argument defaults from `default_value` for SQL functions, in `CREATE FUNCTION`; `persist_docs` no longer fails on functions with `COMMENT ON FUNCTION` (thanks @alvinism!) ([#1765](https://github.com/databricks/dbt-databricks/pull/1765) resolves [#1764](https://github.com/databricks/dbt-databricks/issues/1764))
 
 ### Fixes
 

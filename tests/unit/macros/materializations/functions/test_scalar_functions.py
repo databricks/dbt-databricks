@@ -16,6 +16,10 @@ class ScalarFunctionTestBase(MacroTestBase):
     def macro_folders_to_load(self) -> list:
         return ["macros/materializations/functions", "macros"]
 
+    @pytest.fixture(scope="class")
+    def databricks_template_names(self) -> list:
+        return ["relations/components/comment.sql"]
+
     @pytest.fixture
     def default_context(self) -> dict:
         """Override default context to add formatted_scalar_function_args_sql"""
@@ -229,3 +233,109 @@ class TestScalarFunctionPython(ScalarFunctionTestBase):
         assert "$$" in sql
         assert "runtime_version" not in sql
         assert "handler" not in sql
+
+
+class TestScalarFunctionCommentAndDefault(ScalarFunctionTestBase):
+    """COMMENT and DEFAULT clauses rendered from description and default_value"""
+
+    @staticmethod
+    def make_arg(name, data_type, description=None, default_value=None):
+        return {
+            "name": name,
+            "data_type": data_type,
+            "description": description,
+            "default_value": default_value,
+        }
+
+    def setup_model(
+        self,
+        context,
+        args,
+        language="sql",
+        description="",
+        persist_relation=False,
+        persist_columns=False,
+    ):
+        context["model"].name = "my_func"
+        context["model"].language = language
+        context["model"].description = description
+        context["model"].returns = Mock()
+        context["model"].returns.data_type = "FLOAT"
+        context["model"].arguments = args
+        context["config"].persist_relation_docs = Mock(return_value=persist_relation)
+        context["config"].persist_column_docs = Mock(return_value=persist_columns)
+
+    def run_args(self, template_bundle):
+        return self.run_macro(
+            template_bundle.template, "databricks__formatted_scalar_function_args_sql"
+        )
+
+    def test_args_render_name_and_type_only_by_default(self, template_bundle):
+        self.setup_model(template_bundle.context, [self.make_arg("price", "FLOAT", "the price")])
+        assert self.run_args(template_bundle) == "price float"
+
+    def test_arg_default_is_rendered_for_sql(self, template_bundle):
+        args = [self.make_arg("a", "INT"), self.make_arg("n", "INT", default_value=10)]
+        self.setup_model(template_bundle.context, args)
+        assert self.run_args(template_bundle) == "a int, n int default 10"
+
+    def test_arg_default_is_skipped_with_warning_for_python(self, template_bundle):
+        self.setup_model(
+            template_bundle.context, [self.make_arg("n", "INT", default_value=10)], "python"
+        )
+        assert self.run_args(template_bundle) == "n int"
+        template_bundle.context["exceptions"].warn.assert_called_once_with(
+            "Found `default_value` on argument `n` of Python function `my_func`. "
+            "Databricks supports DEFAULT only for SQL functions, so it will be ignored"
+        )
+
+    def test_arg_comment_is_rendered_when_persisting_column_docs(self, template_bundle):
+        args = [
+            self.make_arg("a", "INT", description="first"),
+            self.make_arg("b", "INT"),
+            self.make_arg("n", "INT", description="row limit", default_value=10),
+        ]
+        self.setup_model(template_bundle.context, args, persist_columns=True)
+        assert (
+            self.run_args(template_bundle)
+            == "a int comment 'first', b int, n int default 10 comment 'row limit'"
+        )
+
+    def test_arg_comment_escapes_quotes_and_backslashes(self, template_bundle):
+        args = [self.make_arg("x", "STRING", description="it's a \\ test")]
+        self.setup_model(template_bundle.context, args, persist_columns=True)
+        assert self.run_args(template_bundle) == "x string comment 'it\\'s a \\\\ test'"
+
+    @pytest.mark.parametrize(
+        "macro_name, language",
+        [
+            ("databricks__scalar_function_create_replace_signature_sql", "sql"),
+            ("databricks__scalar_function_create_replace_signature_python", "python"),
+        ],
+    )
+    def test_function_comment_when_persisting_relation_docs(
+        self, template_bundle, macro_name, language
+    ):
+        self.setup_model(
+            template_bundle.context, [], language, "Doubles a value", persist_relation=True
+        )
+        sql = self.run_macro(template_bundle.template, macro_name, template_bundle.relation)
+        assert f"language {language} comment 'doubles a value'" in sql
+
+    def test_no_function_comment_without_persist_docs(self, template_bundle):
+        self.setup_model(template_bundle.context, [], description="Doubles a value")
+        sql = self.run_macro(
+            template_bundle.template,
+            "databricks__scalar_function_create_replace_signature_sql",
+            template_bundle.relation,
+        )
+        assert "comment" not in sql
+
+    def test_no_function_comment_without_description(self, template_bundle):
+        self.setup_model(template_bundle.context, [], persist_relation=True)
+        sql = self.run_macro(
+            template_bundle.template,
+            "databricks__scalar_function_create_replace_signature_sql",
+            template_bundle.relation,
+        )
+        assert "comment" not in sql
