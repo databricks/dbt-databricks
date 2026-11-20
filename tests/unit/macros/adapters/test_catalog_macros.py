@@ -128,6 +128,53 @@ class TestCatalogMacros(MacroTestBase):
 
         self.assert_sql_equal(result, expected)
 
+    def test_get_catalog_schemas_where_clause_sql_escapes_special_characters(self, template_bundle):
+        catalog = "cat'a\\log"
+        schemas = [["cat'a\\log", "sch'e\\ma1"], ["cat'a\\log", "sch'e\\ma2"]]
+
+        result = self.run_macro(
+            template_bundle.template,
+            "databricks__get_catalog_schemas_where_clause_sql",
+            catalog,
+            schemas,
+        )
+
+        expected = """
+            where table_catalog = 'cat\\'a\\\\log'
+            and (
+                table_schema = 'sch\\'e\\\\ma1' or
+                table_schema = 'sch\\'e\\\\ma2'
+            )
+        """
+        self.assert_sql_equal(result, expected)
+
+    def test_get_catalog_relations_where_clause_sql_escapes_special_characters(
+        self, template_bundle
+    ):
+        relation1 = MagicMock()
+        relation1.schema = "sch'e\\ma1"
+        relation1.identifier = "orders'eu\\test1"
+
+        relation2 = MagicMock()
+        relation2.schema = "sch'e\\ma2"
+        relation2.identifier = "orders'eu\\test2"
+
+        result = self.run_macro(
+            template_bundle.template,
+            "databricks__get_catalog_relations_where_clause_sql",
+            "cat'a\\log",
+            [relation1, relation2],
+        )
+
+        expected = """
+            where table_catalog = 'cat\\'a\\\\log'
+            and (
+                (table_schema = 'sch\\'e\\\\ma1' and table_name = 'orders\\'eu\\\\test1') or
+                (table_schema = 'sch\\'e\\\\ma2' and table_name = 'orders\\'eu\\\\test2')
+            )
+        """
+        self.assert_sql_equal(result, expected)
+
     def test_get_catalog(self, template_bundle, context):
         """Test the full get_catalog macro with mocked run_query"""
         information_schema = {"database": "test_catalog"}

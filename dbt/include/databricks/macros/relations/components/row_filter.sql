@@ -46,9 +46,9 @@ The duplication exists because:
     filter_name,
     target_columns
   FROM `{{ relation.database }}`.`information_schema`.`row_filters`
-  WHERE table_catalog = '{{ relation.database | lower }}'
-    AND table_schema = '{{ relation.schema | lower }}'
-    AND table_name = '{{ relation.identifier | lower }}'
+  WHERE table_catalog = '{{ escape_relation_literal(relation.database | lower) }}'
+    AND table_schema = '{{ escape_relation_literal(relation.schema | lower) }}'
+    AND table_name = '{{ escape_relation_literal(relation.identifier | lower) }}'
 {%- endmacro -%}
 
 

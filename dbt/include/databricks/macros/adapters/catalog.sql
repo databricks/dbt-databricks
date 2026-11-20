@@ -65,24 +65,24 @@ ORDER BY column_index
 {%- endmacro %}
 
 {% macro databricks__get_catalog_schemas_where_clause_sql(catalog, schemas) -%}
-WHERE table_catalog = '{{ catalog|lower }}' AND (
+WHERE table_catalog = '{{ escape_relation_literal(catalog|lower) }}' AND (
   {%- for relation in schemas -%}
-  table_schema = '{{ relation[1]|lower }}'{%- if not loop.last %} OR {% endif -%}
+  table_schema = '{{ escape_relation_literal(relation[1]|lower) }}'{%- if not loop.last %} OR {% endif -%}
   {%- endfor -%})
 {%- endmacro %}
 
 
 {% macro databricks__get_catalog_relations_where_clause_sql(catalog, relations) -%}
-WHERE table_catalog = '{{ catalog|lower }}' AND (
+WHERE table_catalog = '{{ escape_relation_literal(catalog|lower) }}' AND (
   {%- for relation in relations -%}
     {%- if relation.schema and relation.identifier %}
   (
-    table_schema = '{{ relation.schema|lower }}'
-    AND table_name = '{{ relation.identifier|lower }}'
+    table_schema = '{{ escape_relation_literal(relation.schema|lower) }}'
+    AND table_name = '{{ escape_relation_literal(relation.identifier|lower) }}'
   )
     {%- elif relation.schema %}
   (
-    table_schema = '{{ relation.schema|lower }}'
+    table_schema = '{{ escape_relation_literal(relation.schema|lower) }}'
   )
     {% else %}
       {% do exceptions.raise_compiler_error(

@@ -11,9 +11,9 @@
 {% macro fetch_non_null_constraint_columns_sql(relation) -%}
   SELECT column_name
   FROM `{{ relation.database|lower }}`.`information_schema`.`columns`
-  WHERE table_catalog = '{{ relation.database|lower }}' 
-    AND table_schema = '{{ relation.schema|lower }}'
-    AND table_name = '{{ relation.identifier|lower }}'
+  WHERE table_catalog = '{{ escape_relation_literal(relation.database|lower) }}' 
+    AND table_schema = '{{ escape_relation_literal(relation.schema|lower) }}'
+    AND table_name = '{{ escape_relation_literal(relation.identifier|lower) }}'
     AND is_nullable = 'NO';
 {%- endmacro -%}
 
@@ -30,15 +30,15 @@
 {% macro fetch_primary_key_constraints_sql(relation) -%}
   SELECT kcu.constraint_name, kcu.column_name
   FROM `{{ relation.database|lower }}`.information_schema.key_column_usage kcu
-  WHERE kcu.table_catalog = '{{ relation.database|lower }}' 
-    AND kcu.table_schema = '{{ relation.schema|lower }}'
-    AND kcu.table_name = '{{ relation.identifier|lower }}' 
+  WHERE kcu.table_catalog = '{{ escape_relation_literal(relation.database|lower) }}' 
+    AND kcu.table_schema = '{{ escape_relation_literal(relation.schema|lower) }}'
+    AND kcu.table_name = '{{ escape_relation_literal(relation.identifier|lower) }}' 
     AND kcu.constraint_name = (
       SELECT constraint_name
       FROM `{{ relation.database|lower }}`.information_schema.table_constraints
-      WHERE table_catalog = '{{ relation.database|lower }}'
-        AND table_schema = '{{ relation.schema|lower }}'
-        AND table_name = '{{ relation.identifier|lower }}' 
+      WHERE table_catalog = '{{ escape_relation_literal(relation.database|lower) }}'
+        AND table_schema = '{{ escape_relation_literal(relation.schema|lower) }}'
+        AND table_name = '{{ escape_relation_literal(relation.identifier|lower) }}' 
         AND constraint_type = 'PRIMARY KEY'
     )
   ORDER BY kcu.ordinal_position;
@@ -73,15 +73,15 @@
     AND rc.unique_constraint_schema = ukcu.constraint_schema
     AND rc.unique_constraint_name = ukcu.constraint_name
     AND kcu.ordinal_position = ukcu.ordinal_position
-  WHERE kcu.table_catalog = '{{ relation.database|lower }}'
-    AND kcu.table_schema = '{{ relation.schema|lower }}'
-    AND kcu.table_name = '{{ relation.identifier|lower }}'
+  WHERE kcu.table_catalog = '{{ escape_relation_literal(relation.database|lower) }}'
+    AND kcu.table_schema = '{{ escape_relation_literal(relation.schema|lower) }}'
+    AND kcu.table_name = '{{ escape_relation_literal(relation.identifier|lower) }}'
     AND kcu.constraint_name IN (
       SELECT constraint_name
       FROM `{{ relation.database|lower }}`.information_schema.table_constraints
-      WHERE table_catalog = '{{ relation.database|lower }}'
-        AND table_schema = '{{ relation.schema|lower }}'
-        AND table_name = '{{ relation.identifier|lower }}'
+      WHERE table_catalog = '{{ escape_relation_literal(relation.database|lower) }}'
+        AND table_schema = '{{ escape_relation_literal(relation.schema|lower) }}'
+        AND table_name = '{{ escape_relation_literal(relation.identifier|lower) }}'
         AND constraint_type = 'FOREIGN KEY'
     )
   ORDER BY kcu.ordinal_position;

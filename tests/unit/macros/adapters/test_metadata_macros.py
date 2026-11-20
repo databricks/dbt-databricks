@@ -166,6 +166,48 @@ class TestMetadataMacros(MacroTestBase):
         """  # noqa
         self.assert_sql_equal(result, expected_sql)
 
+    def test_get_relation_last_modified_sql_escapes_special_characters(
+        self, context, template_bundle, mock_information_schema
+    ):
+        context["current_timestamp"] = Mock(return_value="current_timestamp()")
+        mock_information_schema.is_hive_metastore.return_value = False
+        mock_information_schema.database = "cat'a\\log"
+
+        rel1 = Mock()
+        rel1.schema = "sch'e\\ma1"
+        rel1.identifier = "orders'eu\\test1"
+
+        result = self.run_macro(
+            template_bundle.template,
+            "get_relation_last_modified_sql",
+            mock_information_schema,
+            [rel1],
+        )
+
+        assert "where table_catalog = 'cat\\'a\\\\log'" in result
+        assert "table_schema = 'sch\\'e\\\\ma1'" in result
+        assert "table_name = 'orders\\'eu\\\\test1'" in result
+
+    def test_get_view_description_sql_escapes_special_characters(self, template_bundle, relation):
+        relation.database = "cat'a\\log"
+        relation.schema = "sch'e\\ma"
+        relation.identifier = "orders'eu\\test"
+        result = self.run_macro(template_bundle.template, "get_view_description_sql", relation)
+
+        assert "where table_catalog = 'cat\\'a\\\\log'" in result
+        assert "and table_schema = 'sch\\'e\\\\ma'" in result
+        assert "and table_name = 'orders\\'eu\\\\test'" in result
+
+    def test_get_uc_tables_sql_escapes_special_characters(self, template_bundle, relation):
+        relation.database = "cat'a\\log"
+        relation.schema = "sch'e\\ma"
+        relation.identifier = "orders'eu\\test"
+        result = self.run_macro(template_bundle.template, "get_uc_tables_sql", relation)
+
+        assert "where table_catalog = 'cat\\'a\\\\log'" in result
+        assert "and table_schema = 'sch\\'e\\\\ma'" in result
+        assert "and table_name = 'orders\\'eu\\\\test'" in result
+
     def test_list_schemas_sql_with_database(self, template_bundle):
         result = self.run_macro(template_bundle.template, "list_schemas_sql", "my_catalog")
 
