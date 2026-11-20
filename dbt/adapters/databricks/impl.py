@@ -94,7 +94,10 @@ from dbt.adapters.databricks.relation_configs.table_format import TableFormat
 from dbt.adapters.databricks.relation_configs.tags import (
     TagsProcessor,
 )
-from dbt.adapters.databricks.relation_configs.tblproperties import TblPropertiesConfig
+from dbt.adapters.databricks.relation_configs.tblproperties import (
+    TblPropertiesConfig,
+    TblPropertiesProcessor,
+)
 from dbt.adapters.databricks.relation_configs.view import ViewConfig
 from dbt.adapters.databricks.spog import probe
 from dbt.adapters.databricks.spog.capabilities import (
@@ -408,6 +411,29 @@ class DatabricksAdapter(SparkAdapter):
         catalog_relation: DatabricksCatalogRelation = self.build_catalog_relation(config.model)  # type:ignore
         result.update(catalog_relation.iceberg_table_properties)
         return result
+
+    @available.parse(lambda *a, **k: {})
+    def update_tblproperties_for_snapshot(
+        self,
+        config: BaseConfig,
+        tblproperties: Optional[dict[str, str]] = None,
+        columns: Optional[list[str]] = None,
+    ) -> dict[str, str]:
+        try:
+            file_format = self.resolve_file_format(config)
+        except Exception:
+            file_format = constants.DELTA_FILE_FORMAT
+
+        if file_format != constants.DELTA_FILE_FORMAT:
+            if tblproperties is not None:
+                return dict(tblproperties)
+            if hasattr(config, "get"):
+                return dict(config.get("tblproperties", {}))
+            return {}
+
+        return TblPropertiesProcessor.update_tblproperties_for_snapshot(
+            config, tblproperties, columns
+        )
 
     @available.parse(lambda *a, **k: 0)
     def compute_external_path(

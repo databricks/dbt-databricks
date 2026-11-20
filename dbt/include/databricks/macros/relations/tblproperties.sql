@@ -8,6 +8,23 @@
   {%- else -%}
     {%- set tblproperties = tblproperties or config.get("tblproperties", {}) -%}
   {%- endif -%}
+  {%- if config.get("materialized") == "snapshot" -%}
+    {%- set query_columns = none -%}
+    {%- if execute -%}
+      {%- set query_sql = none -%}
+      {%- if model is defined and model -%}
+        {%- if model is mapping -%}
+          {%- set query_sql = model.get('compiled_code') -%}
+        {%- elif model.compiled_code is defined and model.compiled_code is string -%}
+          {%- set query_sql = model.compiled_code -%}
+        {%- endif -%}
+      {%- endif -%}
+      {%- if query_sql -%}
+        {%- set query_columns = get_columns_in_query(adapter.clean_sql(query_sql)) -%}
+      {%- endif -%}
+    {%- endif -%}
+    {%- set tblproperties = adapter.update_tblproperties_for_snapshot(config, tblproperties, query_columns) -%}
+  {%- endif -%}
   {%- if tblproperties != {} %}
     tblproperties (
       {%- for prop in tblproperties -%}

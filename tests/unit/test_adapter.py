@@ -2393,3 +2393,49 @@ class TestDebugEmitSpogBlock:
             DatabricksAdapter.debug_emit_spog_block(host="", http_path="")
         mock_probe.assert_not_called()
         mock_logger.info.assert_not_called()
+
+
+class TestUpdateTblpropertiesForSnapshot(DatabricksAdapterBase):
+    @pytest.fixture
+    def adapter(self):
+        with patch("dbt.adapters.databricks.connections.DatabricksConnectionManager"):
+            return DatabricksAdapter(self._get_config(), get_context("spawn"))
+
+    def test_update_tblproperties_for_snapshot_default_delta(self, adapter):
+        config = Mock()
+        config.get.side_effect = lambda key, default=None: {
+            "materialized": "snapshot",
+            "file_format": "delta",
+            "tblproperties": {},
+        }.get(key, default)
+        result = adapter.update_tblproperties_for_snapshot(config)
+        assert result == {
+            "delta.dataSkippingStatsColumns": (
+                "dbt_scd_id, dbt_updated_at, dbt_valid_from, dbt_valid_to"
+            )
+        }
+
+    def test_update_tblproperties_for_snapshot_with_passed_columns(self, adapter):
+        config = Mock()
+        config.get.side_effect = lambda key, default=None: {
+            "materialized": "snapshot",
+            "file_format": "delta",
+            "tblproperties": {},
+        }.get(key, default)
+        data_cols = [f"c{i}" for i in range(1, 40)]
+        result = adapter.update_tblproperties_for_snapshot(config, columns=data_cols)
+        expected = ", ".join(
+            [f"c{i}" for i in range(1, 33)]
+            + ["dbt_scd_id", "dbt_updated_at", "dbt_valid_from", "dbt_valid_to"]
+        )
+        assert result == {"delta.dataSkippingStatsColumns": expected}
+
+    def test_update_tblproperties_for_snapshot_non_delta_skipped(self, adapter):
+        config = Mock()
+        config.get.side_effect = lambda key, default=None: {
+            "materialized": "snapshot",
+            "file_format": "hudi",
+            "tblproperties": {"custom": "prop"},
+        }.get(key, default)
+        result = adapter.update_tblproperties_for_snapshot(config)
+        assert result == {"custom": "prop"}
