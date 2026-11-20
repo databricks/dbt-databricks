@@ -228,9 +228,10 @@ class QueryTagsUtils:
         connection_tags: dict[str, str],
         model_tags: dict[str, str],
         default_tags: dict[str, str],
+        env_tags: Optional[dict[str, str]] = None,
     ) -> dict[str, str]:
         """
-        Merge query tags with precedence: model > connection > default.
+        Merge query tags with precedence: model > env > connection > default.
         Validates that no reserved keys are used and tag limits are respected.
         """
         # Process default tags (escape and truncate, don't validate reserved keys)
@@ -238,12 +239,16 @@ class QueryTagsUtils:
 
         # Validate user-provided tags (cannot use reserved keys)
         QueryTagsUtils.validate_query_tags(connection_tags, "Connection config")
+        if env_tags:
+            QueryTagsUtils.validate_query_tags(env_tags, "Environment variable")
         QueryTagsUtils.validate_query_tags(model_tags, "Model config")
 
-        # Merge with precedence: model > connection > default
+        # Merge with precedence: model > env > connection > default
         merged = {}
         merged.update(processed_default_tags)
         merged.update(connection_tags)
+        if env_tags:
+            merged.update(env_tags)
         merged.update(model_tags)
 
         # Final validation of merged tags (only check total count)

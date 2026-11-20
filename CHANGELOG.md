@@ -2,6 +2,7 @@
 
 ### Features
 
+- Allow passing Databricks query tags via `DBT_DATABRICKS_QUERY_TAGS` or `DBT_QUERY_TAGS` environment variables (resolves [#1454](https://github.com/databricks/dbt-databricks/issues/1454))
 - Accept `use_materialization_v2` as a model config, so a project or an individual table or incremental model can choose between the atomic `CREATE OR REPLACE TABLE … AS SELECT` path and the create-then-insert path; models that don't set it follow the `use_materialization_v2` behavior flag, and view models ignore it ([#1718](https://github.com/databricks/dbt-databricks/pull/1718))
 
 ### Fixes

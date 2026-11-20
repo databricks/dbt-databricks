@@ -266,6 +266,58 @@ class TestQueryTagsUtils:
         result = QueryTagsUtils.format_query_tags_for_databricks({})
         assert result == ""
 
+    def test_merge_query_tags_with_env_tags(self):
+        """Test merging query tags when env_tags are provided."""
+        connection_tags = {"team": "marketing", "cost_center": "3000"}
+        env_tags = {"environment": "ci", "dag_id": "daily_etl", "cost_center": "4000"}
+        model_tags = {"team": "analytics"}
+        default_tags = {"dbt_model_name": "test_model"}
+
+        result = QueryTagsUtils.merge_query_tags(
+            connection_tags=connection_tags,
+            model_tags=model_tags,
+            default_tags=default_tags,
+            env_tags=env_tags,
+        )
+
+        # Precedence: model > env > connection > default
+        assert result["team"] == "analytics"  # Model beats connection
+        assert result["cost_center"] == "4000"  # Env beats connection
+        assert result["environment"] == "ci"  # From env
+        assert result["dag_id"] == "daily_etl"  # From env
+
+    def test_merge_query_tags_env_tags_reserved_key(self):
+        """Test that env_tags cannot use reserved keys."""
+        connection_tags = {}
+        env_tags = {"@@dbt_model_name": "hacked"}
+        model_tags = {}
+        default_tags = {}
+
+        with pytest.raises(
+            DbtValidationError, match="Environment variable: Cannot use reserved query tag keys"
+        ):
+            QueryTagsUtils.merge_query_tags(
+                connection_tags=connection_tags,
+                model_tags=model_tags,
+                default_tags=default_tags,
+                env_tags=env_tags,
+            )
+
+    def test_merge_query_tags_env_tags_escapes_special_chars(self):
+        """Test that env_tags values with commas/colons/backslashes are escaped."""
+        connection_tags = {}
+        env_tags = {"path": "a/b:c,d\\e"}
+        model_tags = {}
+        default_tags = {}
+
+        result = QueryTagsUtils.merge_query_tags(
+            connection_tags=connection_tags,
+            model_tags=model_tags,
+            default_tags=default_tags,
+            env_tags=env_tags,
+        )
+        assert result["path"] == "a/b\\:c\\,d\\\\e"
+
 
 class TestQueryConfigUtils:
     """Test the QueryConfigUtils class."""
@@ -363,3 +415,74 @@ class TestQueryConfigUtils:
 
         # Should only have default tags
         assert len(result) == 4
+
+    def test_get_merged_query_tags_with_dbt_databricks_query_tags_env(self, monkeypatch):
+        """Test that DBT_DATABRICKS_QUERY_TAGS environment variable is merged."""
+        monkeypatch.setenv(
+            "DBT_DATABRICKS_QUERY_TAGS", '{"env_var": "orchestrator", "run_id": "12345"}'
+        )
+
+        creds = Mock(spec=DatabricksCredentials)
+        creds.query_tags = '{"team": "marketing", "run_id": "00000"}'
+
+        query_header_context = Mock()
+        query_header_context.model_name = "test_model"
+        query_header_context.materialized = "table"
+        query_header_context.model_query_tags_override = {"team": "analytics"}
+
+        result = QueryConfigUtils.get_merged_query_tags(query_header_context, creds)
+
+        # Precedence check
+        assert result["team"] == "analytics"  # Model overrides connection
+        assert result["run_id"] == "12345"  # Env var overrides connection
+        assert result["env_var"] == "orchestrator"  # Injected from env var
+        assert result["@@dbt_model_name"] == "test_model"
+
+    def test_get_merged_query_tags_fallback_to_dbt_query_tags_env(self, monkeypatch):
+        """Test fallback to DBT_QUERY_TAGS when DBT_DATABRICKS_QUERY_TAGS is absent."""
+        monkeypatch.delenv("DBT_DATABRICKS_QUERY_TAGS", raising=False)
+        monkeypatch.setenv("DBT_QUERY_TAGS", '{"generic_tag": "active"}')
+
+        creds = Mock(spec=DatabricksCredentials)
+        creds.query_tags = None
+
+        query_header_context = Mock()
+        query_header_context.model_name = "test_model"
+        query_header_context.materialized = "table"
+        query_header_context.model_query_tags_override = None
+
+        result = QueryConfigUtils.get_merged_query_tags(query_header_context, creds)
+        assert result["generic_tag"] == "active"
+
+    def test_get_merged_query_tags_databricks_env_takes_precedence_over_generic_env(
+        self, monkeypatch
+    ):
+        """Test that DBT_DATABRICKS_QUERY_TAGS takes precedence over DBT_QUERY_TAGS."""
+        monkeypatch.setenv("DBT_DATABRICKS_QUERY_TAGS", '{"tag": "databricks_specific"}')
+        monkeypatch.setenv("DBT_QUERY_TAGS", '{"tag": "generic"}')
+
+        creds = Mock(spec=DatabricksCredentials)
+        creds.query_tags = None
+
+        query_header_context = Mock()
+        query_header_context.model_name = "test_model"
+        query_header_context.materialized = "table"
+        query_header_context.model_query_tags_override = None
+
+        result = QueryConfigUtils.get_merged_query_tags(query_header_context, creds)
+        assert result["tag"] == "databricks_specific"
+
+    def test_get_merged_query_tags_invalid_json_in_env_raises(self, monkeypatch):
+        """Test that malformed JSON in environment variable raises DbtValidationError."""
+        monkeypatch.setenv("DBT_DATABRICKS_QUERY_TAGS", "{not: valid json}")
+
+        creds = Mock(spec=DatabricksCredentials)
+        creds.query_tags = None
+
+        query_header_context = Mock()
+        query_header_context.model_name = "test_model"
+        query_header_context.materialized = "table"
+        query_header_context.model_query_tags_override = None
+
+        with pytest.raises(DbtValidationError, match="Invalid JSON in query_tags"):
+            QueryConfigUtils.get_merged_query_tags(query_header_context, creds)
