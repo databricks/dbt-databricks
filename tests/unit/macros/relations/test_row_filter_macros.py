@@ -272,13 +272,51 @@ class TestGetCreateRowFilterClause(MacroTestBase):
     def macro_folders_to_load(self) -> list:
         return ["macros/relations/components", "macros"]
 
-    def test_no_config(self, config, template_bundle):
-        """Test with no row_filter config."""
-        # config is empty by default
+    def test_no_config(self, config, context, template_bundle):
+        """Test with no row_filter config.
+
+        When row_filter is not configured (None), existing table filters should be
+        preserved and drop_row_filter_if_exists must not be called.
+        """
+        # config is empty by default (config.get('row_filter') returns None)
+        statement_calls = []
+
+        def mock_statement(name, fetch_result=False, caller=None):
+            statement_calls.append(name)
+            if caller:
+                return caller()
+            return ""
+
+        context["statement"] = mock_statement
         sql = self.run_macro(
             template_bundle.template, "get_create_row_filter_clause", template_bundle.relation
         )
         assert sql == ""
+        assert "list_row_filters" not in statement_calls
+        assert "drop_row_filter" not in statement_calls
+
+    def test_explicit_empty_config_drops_existing_filter(self, config, context, template_bundle):
+        """Test that explicit empty row_filter config calls drop_row_filter_if_exists."""
+        config["row_filter"] = {}
+        statement_calls = []
+
+        def mock_statement(name, fetch_result=False, caller=None):
+            statement_calls.append(name)
+            if caller:
+                return caller()
+            return ""
+
+        context["statement"] = mock_statement
+        mock_table = [Mock()]
+        context["load_result"] = Mock(return_value=Mock(table=mock_table))
+        template_bundle.relation.is_hive_metastore = Mock(return_value=False)
+
+        sql = self.run_macro(
+            template_bundle.template, "get_create_row_filter_clause", template_bundle.relation
+        )
+        assert "alter table `some_database`.`some_schema`.`some_table` drop row filter" in sql
+        assert "list_row_filters" in statement_calls
+        assert "drop_row_filter" in statement_calls
 
     def test_with_valid_config(self, config, template_bundle):
         """Test with valid row_filter config."""

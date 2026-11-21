@@ -1,3 +1,9 @@
+## dbt-databricks 1.13.2 (TBD)
+
+### Fixes
+
+- Preserve existing Unity Catalog row filters during table creation/replacement when a model does not configure `row_filter` (resolves [#1782](https://github.com/databricks/dbt-databricks/issues/1782))
+
 ## dbt-databricks 1.13.1 (Nov 19, 2026)
 
 ### Features

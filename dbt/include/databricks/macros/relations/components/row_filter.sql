@@ -120,8 +120,8 @@ The duplication exists because:
 
 {%- macro drop_row_filter_if_exists(relation) -%}
   {#- Drops any existing row filter from a relation before CREATE OR REPLACE.
-      Used by table materialization when the model has no row filter configured
-      but the existing table might have one from a previous run. -#}
+      Used by table materialization when the model explicitly has an empty row filter
+      configured (e.g., to drop an existing filter) but the existing table might have one. -#}
   {%- if not relation.is_hive_metastore() -%}
     {%- set existing_filters = fetch_row_filters(relation) -%}
     {%- if existing_filters | length > 0 -%}
@@ -164,8 +164,10 @@ The duplication exists because:
 {%- macro get_create_row_filter_clause(relation) -%}
   {%- set row_filter = config.get('row_filter') -%}
 
-  {%- if not row_filter or not row_filter.get('function') -%}
-    {#-- Model has no row filter - drop any existing filter from table --#}
+  {%- if row_filter is none -%}
+    {#-- Model has no row filter config - preserve any existing filter on table --#}
+  {%- elif not row_filter or not row_filter.get('function') -%}
+    {#-- Model explicitly has empty/no-op row filter - drop existing filter from table --#}
     {{ drop_row_filter_if_exists(relation) }}
   {%- else -%}
     {#-- Model has row filter - generate the WITH ROW FILTER clause --#}
