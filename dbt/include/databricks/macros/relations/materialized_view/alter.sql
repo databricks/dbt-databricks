@@ -59,11 +59,7 @@
         {#- is_change guard prevents false alters when row_filter is unchanged -#}
         {%- set row_filter = configuration_changes.changes.get("row_filter") -%}
         {%- if row_filter and row_filter.is_change -%}
-          {%- if row_filter.should_unset -%}
-            {{ return_statements.append(alter_drop_row_filter(relation)) }}
-          {%- elif row_filter.function -%}
-            {{ return_statements.append(alter_set_row_filter(relation, row_filter)) }}
-          {%- endif -%}
+          {{ return_statements.append(alter_set_row_filter(relation, row_filter)) }}
         {%- endif -%}
 
         {#- An in-place alter replaces this run's REFRESH, so re-add it unless the server auto-refreshes -#}

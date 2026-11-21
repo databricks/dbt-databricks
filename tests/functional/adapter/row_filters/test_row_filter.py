@@ -103,7 +103,7 @@ class TestRowFilterTable(RowFilterMixin):
         }
 
     def test_row_filter_lifecycle(self, project):
-        """Test create, update, and remove row filter lifecycle."""
+        """Test create, update, and retain row filter lifecycle."""
         # Setup
         self.create_filter_udfs(project)
 
@@ -116,11 +116,10 @@ class TestRowFilterTable(RowFilterMixin):
         run_dbt(["run"])
         self.assert_qualified_filter(project, "base_model", "user_filter", "user_id")
 
-        # 3. Remove filter
+        # Removing row_filter from the model leaves the existing filter in place
         write_file(model_no_filter, "models", "schema.yml")
         run_dbt(["run"])
-        filters = self.get_row_filters(project, "base_model")
-        assert len(filters) == 0
+        self.assert_qualified_filter(project, "base_model", "user_filter", "user_id")
 
 
 @pytest.mark.skip_profile("databricks_cluster")
@@ -135,7 +134,7 @@ class TestIncrementalRowFilter(RowFilterMixin):
         }
 
     def test_incremental_row_filter_lifecycle(self, project):
-        """Test create, update, and remove row filter lifecycle on incremental model."""
+        """Test create, update, and retain row filter lifecycle on incremental model."""
         self.create_filter_udfs(project)
 
         # 1. CREATE with filter (initial run)
@@ -157,11 +156,10 @@ class TestIncrementalRowFilter(RowFilterMixin):
         assert len(filters) == 1
         assert "user_filter" in filters[0][0].lower()
 
-        # 4. REMOVE filter (incremental run removing config)
+        # Removing row_filter from the model leaves the existing filter in place
         write_file(model_no_filter, "models", "schema.yml")
         run_dbt(["run"])
-        filters = self.get_row_filters(project, "base_model")
-        assert len(filters) == 0
+        self.assert_qualified_filter(project, "base_model", "user_filter", "user_id")
 
 
 @pytest.mark.skip_profile("databricks_cluster")
@@ -190,7 +188,7 @@ class TestMaterializedViewRowFilter(RowFilterMixin):
         }
 
     def test_mv_row_filter_lifecycle(self, project):
-        """Test create, update, and remove row filter lifecycle on MV."""
+        """Test create, update, and retain row filter lifecycle on MV."""
         self.create_filter_udfs(project)
 
         # 1. CREATE with filter
@@ -206,11 +204,10 @@ class TestMaterializedViewRowFilter(RowFilterMixin):
         assert len(filters) == 1
         assert "user_filter" in filters[0][0].lower()
 
-        # 3. DROP filter
+        # Removing row_filter from the model leaves the existing filter in place
         write_file(model_no_filter, "models", "schema.yml")
         run_dbt(["run"])
-        filters = self.get_row_filters(project, "base_model")
-        assert len(filters) == 0
+        self.assert_qualified_filter(project, "base_model", "user_filter", "user_id")
 
 
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
@@ -255,7 +252,7 @@ class TestStreamingTableRowFilter(RowFilterMixin):
         yield
 
     def test_streaming_table_row_filter_lifecycle(self, project):
-        """Test create, update, and remove row filter lifecycle on ST."""
+        """Test create, update, and retain row filter lifecycle on ST."""
         self.create_filter_udfs(project)
 
         # 1. CREATE with filter
@@ -271,11 +268,10 @@ class TestStreamingTableRowFilter(RowFilterMixin):
         assert len(filters) == 1
         assert "user_filter" in filters[0][0].lower()
 
-        # 3. DROP filter
+        # Removing row_filter from the model leaves the existing filter in place
         write_file(model_no_filter, "models", "schema.yml")
         run_dbt(["run"])
-        filters = self.get_row_filters(project, "base_model")
-        assert len(filters) == 0
+        self.assert_qualified_filter(project, "base_model", "user_filter", "user_id")
 
 
 @pytest.mark.skip_profile("databricks_cluster", "databricks_uc_cluster")
@@ -330,7 +326,7 @@ class TestRowFilterTableSafeReplace(RowFilterMixin):
         }
 
     def test_safe_replace_row_filter_lifecycle(self, project):
-        """Test create, update, and remove row filter lifecycle with safe_relation_replace."""
+        """Test create and update row filter lifecycle with safe_relation_replace."""
         self.create_filter_udfs(project)
 
         # 1. Create with filter (initial run - no existing relation)
@@ -346,7 +342,8 @@ class TestRowFilterTableSafeReplace(RowFilterMixin):
         assert len(filters) == 1
         assert "user_filter" in filters[0][0].lower()
 
-        # 3. Remove filter (existing relation - should take SAFE_RELATION_REPLACE path)
+        # 3. Remove filter (safe_relation_replace swaps in a fresh staging table, so
+        #    undeclared filters from the old table are not carried over)
         write_file(model_no_filter, "models", "schema.yml")
         run_dbt(["run"])
         filters = self.get_row_filters(project, "base_model")
@@ -370,7 +367,7 @@ class TestRowFilterTableV1(BaseRowFilterMixin, MaterializationV1Mixin):
         }
 
     def test_row_filter_lifecycle(self, project):
-        """Test create, update, and remove row filter lifecycle in V1."""
+        """Test create, update, and retain row filter lifecycle in V1."""
         self.create_filter_udfs(project)
 
         # 1. Create with filter
@@ -386,11 +383,10 @@ class TestRowFilterTableV1(BaseRowFilterMixin, MaterializationV1Mixin):
         assert len(filters) == 1
         assert "user_filter" in filters[0][0].lower()
 
-        # 3. Remove filter
+        # Removing row_filter from the model leaves the existing filter in place
         write_file(model_no_filter, "models", "schema.yml")
         run_dbt(["run"])
-        filters = self.get_row_filters(project, "base_model")
-        assert len(filters) == 0
+        self.assert_qualified_filter(project, "base_model", "user_filter", "user_id")
 
 
 @pytest.mark.skip_profile("databricks_cluster")
@@ -422,8 +418,7 @@ class TestIncrementalRowFilterV1(BaseRowFilterMixin, MaterializationV1Mixin):
         run_dbt(["run"])
         self.assert_qualified_filter(project, "base_model", "user_filter", "user_id")
 
-        # Removing the config on a later incremental run drops the filter
+        # Removing row_filter from the model leaves the existing filter in place
         write_file(model_no_filter, "models", "schema.yml")
         run_dbt(["run"])
-        filters = self.get_row_filters(project, "base_model")
-        assert len(filters) == 0
+        self.assert_qualified_filter(project, "base_model", "user_filter", "user_id")

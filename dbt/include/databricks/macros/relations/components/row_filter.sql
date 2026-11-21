@@ -15,10 +15,12 @@ ARCHITECTURAL NOTE: CREATE and ALTER Paths
    - Reads raw config.get('row_filter') and validates in Jinja
    - Row filter is embedded in the CREATE statement
 
-2. ALTER PATH (alter_set_row_filter / alter_drop_row_filter):
+2. ALTER PATH (alter_set_row_filter):
    - Used for subsequent changes in incremental materializations (incremental, MV, ST)
    - Receives pre-validated RowFilterConfig from Python
-   - When should_unset=True, drops the filter; when function is set, applies it
+
+Row filters are add-only: dbt never drops a filter the model doesn't declare, since
+other tools may own it and Databricks keeps it across CREATE OR REPLACE.
 
 The duplication exists because:
 - CREATE path reads raw config (Python processing hasn't happened yet)
@@ -87,48 +89,19 @@ The duplication exists because:
 {%- endmacro -%}
 
 
-{%- macro alter_drop_row_filter(relation) -%}
-  ALTER {{ relation.type.render() }} {{ relation.render() }}
-  DROP ROW FILTER
-{%- endmacro -%}
-
-
 {#-- ===== APPLY MACRO (executes SQL) ===== --#}
 
 {%- macro apply_row_filter(target_relation, row_filter) -%}
   {#- Executes SQL immediately via call statement('main') -#}
-  {#- row_filter is a RowFilterConfig object with is_change, should_unset, function fields -#}
+  {#- row_filter is a RowFilterConfig object with is_change and function fields -#}
   {%- if target_relation.is_hive_metastore() -%}
     {{ exceptions.raise_compiler_error("Row filters are not supported for Hive Metastore") }}
   {%- endif -%}
 
   {%- if row_filter.is_change -%}
-    {%- if row_filter.should_unset -%}
-      {%- call statement('main') -%}
-        {{ alter_drop_row_filter(target_relation) }}
-      {%- endcall -%}
-    {%- elif row_filter.function -%}
-      {%- call statement('main') -%}
-        {{ alter_set_row_filter(target_relation, row_filter) }}
-      {%- endcall -%}
-    {%- endif -%}
-  {%- endif -%}
-{%- endmacro -%}
-
-
-{#-- ===== DROP IF EXISTS MACRO (for table materialization) ===== --#}
-
-{%- macro drop_row_filter_if_exists(relation) -%}
-  {#- Drops any existing row filter from a relation before CREATE OR REPLACE.
-      Used by table materialization when the model has no row filter configured
-      but the existing table might have one from a previous run. -#}
-  {%- if not relation.is_hive_metastore() -%}
-    {%- set existing_filters = fetch_row_filters(relation) -%}
-    {%- if existing_filters | length > 0 -%}
-      {%- call statement('drop_row_filter') -%}
-        {{ alter_drop_row_filter(relation) }}
-      {%- endcall -%}
-    {%- endif -%}
+    {%- call statement('main') -%}
+      {{ alter_set_row_filter(target_relation, row_filter) }}
+    {%- endcall -%}
   {%- endif -%}
 {%- endmacro -%}
 
@@ -164,11 +137,7 @@ The duplication exists because:
 {%- macro get_create_row_filter_clause(relation) -%}
   {%- set row_filter = config.get('row_filter') -%}
 
-  {%- if not row_filter or not row_filter.get('function') -%}
-    {#-- Model has no row filter - drop any existing filter from table --#}
-    {{ drop_row_filter_if_exists(relation) }}
-  {%- else -%}
-    {#-- Model has row filter - generate the WITH ROW FILTER clause --#}
+  {%- if row_filter and row_filter.get('function') -%}
     {%- set columns = row_filter.get('columns', []) -%}
 
     {#- Normalize string to list -#}

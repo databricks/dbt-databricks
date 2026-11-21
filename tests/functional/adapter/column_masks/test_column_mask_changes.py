@@ -10,10 +10,9 @@ from tests.functional.adapter.fixtures import MaterializationV2Mixin, RerunSafeM
 
 
 @pytest.mark.skip_profile("databricks_cluster")
-class TestIncrementalColumnMaskRemoval(RerunSafeMixin, MaterializationV2Mixin):
-    """Removing a column_mask on an existing incremental relation issues
-    ALTER COLUMN ... DROP MASK (the get_diff unset branch), leaving the column
-    unmasked."""
+class TestIncrementalColumnMaskRetained(RerunSafeMixin, MaterializationV2Mixin):
+    """Dropping column_mask from the model leaves the existing mask in place, so masks
+    applied outside dbt survive incremental runs."""
 
     @pytest.fixture(scope="class")
     def models(self):
@@ -37,7 +36,7 @@ class TestIncrementalColumnMaskRemoval(RerunSafeMixin, MaterializationV2Mixin):
             fetch="all",
         )
 
-    def test_removing_column_mask_drops_it(self, project):
+    def test_removing_column_mask_keeps_it(self, project):
         project.run_sql(
             f"CREATE OR REPLACE FUNCTION {project.database}.{project.test_schema}."
             "password_mask(password STRING) RETURNS STRING RETURN '*****';"
@@ -55,5 +54,19 @@ class TestIncrementalColumnMaskRemoval(RerunSafeMixin, MaterializationV2Mixin):
         run_dbt(["run"])
 
         masks_after = self._column_masks(project)
-        assert masks_after == []
-        assert project.run_sql("SELECT password FROM base_model", fetch="one")[0] == "password123"
+        assert len(masks_after) == 1
+        assert masks_after[0][0] == "password"
+        assert project.run_sql("SELECT password FROM base_model", fetch="one")[0] == "*****"
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestTableColumnMaskRetained(TestIncrementalColumnMaskRetained):
+    """Dropping column_mask from a table model leaves the existing mask in place across
+    CREATE OR REPLACE rebuilds."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "base_model.sql": base_model_sql,
+            "schema.yml": model,
+        }

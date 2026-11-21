@@ -15,16 +15,10 @@ class TestRowFilterConfig:
         existing = RowFilterConfig()
         assert desired.get_diff(existing) is None
 
-    def test_unset_when_removed(self):
-        """When filter is removed from config, return RowFilterConfig with should_unset=True."""
+    def test_no_change_when_not_declared(self):
         desired = RowFilterConfig()
         existing = RowFilterConfig(function="cat.schema.fn", columns=("col1",))
-        diff = desired.get_diff(existing)
-        assert diff is not None
-        assert isinstance(diff, RowFilterConfig)
-        assert diff.should_unset is True
-        assert diff.is_change is True  # Critical: marks as actual change
-        assert diff.function is None
+        assert desired.get_diff(existing) is None
 
     def test_set_when_new(self):
         """When filter is added, return RowFilterConfig with the filter to apply."""
@@ -34,7 +28,6 @@ class TestRowFilterConfig:
         assert diff is not None
         assert isinstance(diff, RowFilterConfig)
         assert diff.function == "cat.schema.fn"
-        assert diff.should_unset is False
         assert diff.is_change is True  # Critical: marks as actual change
 
     def test_no_change_when_equal_case_insensitive(self):
@@ -50,7 +43,6 @@ class TestRowFilterConfig:
         assert diff is not None
         assert isinstance(diff, RowFilterConfig)
         assert diff.function == "cat.schema.fn2"
-        assert diff.should_unset is False
         assert diff.is_change is True  # Critical: marks as actual change
 
     def test_change_when_different_columns(self):
@@ -62,14 +54,12 @@ class TestRowFilterConfig:
         assert isinstance(diff, RowFilterConfig)
         assert diff.function == "cat.schema.fn"
         assert diff.columns == ("col1", "col2")
-        assert diff.should_unset is False
         assert diff.is_change is True  # Critical: marks as actual change
 
     def test_is_change_false_by_default(self):
         """RowFilterConfig.is_change should be False by default (current state objects)."""
         config = RowFilterConfig(function="cat.schema.fn", columns=("col1",))
         assert config.is_change is False
-        assert config.should_unset is False
 
 
 class TestRowFilterProcessor:

@@ -13,34 +13,19 @@ from dbt.adapters.databricks.relation_configs.base import (
 class ColumnMaskConfig(DatabricksComponentConfig):
     # column name -> mask config (function name and optional using_columns)
     set_column_masks: dict[str, dict[str, str]]
-    unset_column_masks: list[str] = []
 
     def get_diff(self, other: "ColumnMaskConfig") -> Optional["ColumnMaskConfig"]:
-        # Find column masks that need to be unset
-        # Use case-insensitive comparison for column names (Databricks queries are case-insensitive)
-        self_column_masks_lower = {k.lower() for k in self.set_column_masks.keys()}
-        unset_column_mask = [
-            col for col in other.set_column_masks if col.lower() not in self_column_masks_lower
-        ]
+        # Add-only: masks the model doesn't declare may be owned by other tools, so they stay.
+        # Column names compare case-insensitively; mask values compare exactly.
+        existing_masks = {col.lower(): mask for col, mask in other.set_column_masks.items()}
+        set_column_masks = {
+            col: mask
+            for col, mask in self.set_column_masks.items()
+            if existing_masks.get(col.lower()) != mask
+        }
 
-        # Find column masks that need to be set or updated
-        # Use case-insensitive comparison for column names, but preserve exact mask values
-        other_column_masks_lower = {}
-        for k, v in other.set_column_masks.items():
-            other_column_masks_lower[k.lower()] = v
-
-        set_column_mask = {}
-        for col, mask in self.set_column_masks.items():
-            # Case-insensitive column name lookup, but exact mask value comparison
-            other_mask = other_column_masks_lower.get(col.lower())
-            if other_mask is None or other_mask != mask:
-                set_column_mask[col] = mask
-
-        if set_column_mask or unset_column_mask:
-            return ColumnMaskConfig(
-                set_column_masks=set_column_mask,
-                unset_column_masks=unset_column_mask,
-            )
+        if set_column_masks:
+            return ColumnMaskConfig(set_column_masks=set_column_masks)
         return None
 
 

@@ -140,8 +140,7 @@ class TestIncrementalConfig:
                     set_column_masks={
                         "col1": {"function": "mask1", "using_columns": "col2"},
                         "col2": {"function": "mask2", "using_columns": "col1"},
-                    },
-                    unset_column_masks=[],
+                    }
                 ),
                 "row_filter": RowFilterConfig(),
             }

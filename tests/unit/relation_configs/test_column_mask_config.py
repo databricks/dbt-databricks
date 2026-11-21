@@ -64,16 +64,13 @@ class TestColumnMaskConfig:
     def test_get_diff__empty_and_some_exist(self):
         config = ColumnMaskConfig(set_column_masks={})
         other = ColumnMaskConfig(set_column_masks={"col1": {"function": "mask1"}})
-        diff = config.get_diff(other)
-        assert diff == ColumnMaskConfig(set_column_masks={}, unset_column_masks=["col1"])
+        assert config.get_diff(other) is None
 
     def test_get_diff__some_new_and_empty_existing(self):
         config = ColumnMaskConfig(set_column_masks={"col1": {"function": "mask1"}})
         other = ColumnMaskConfig(set_column_masks={})
         diff = config.get_diff(other)
-        assert diff == ColumnMaskConfig(
-            set_column_masks={"col1": {"function": "mask1"}}, unset_column_masks=[]
-        )
+        assert diff == ColumnMaskConfig(set_column_masks={"col1": {"function": "mask1"}})
 
     def test_get_diff__mixed_case(self):
         config = ColumnMaskConfig(
@@ -93,8 +90,7 @@ class TestColumnMaskConfig:
             set_column_masks={
                 "col1": {"function": "mask1"},
                 "col2": {"function": "mask2"},
-            },
-            unset_column_masks=["col3"],
+            }
         )
 
     def test_get_diff__no_changes(self):

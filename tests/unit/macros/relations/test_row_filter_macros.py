@@ -230,37 +230,6 @@ class TestAlterSetRowFilter(MacroTestBase):
         assert "materialized view" in sql.lower()
 
 
-class TestAlterDropRowFilter(MacroTestBase):
-    """Tests for the alter_drop_row_filter macro."""
-
-    @pytest.fixture(scope="class")
-    def template_name(self) -> str:
-        return "row_filter.sql"
-
-    @pytest.fixture(scope="class")
-    def macro_folders_to_load(self) -> list:
-        return ["macros/relations/components", "macros"]
-
-    def test_drop_row_filter_table(self, template_bundle):
-        """Test DROP ROW FILTER on table."""
-        sql = self.run_macro(
-            template_bundle.template, "alter_drop_row_filter", template_bundle.relation
-        )
-        expected = "alter table `some_database`.`some_schema`.`some_table` drop row filter"
-        assert sql == self.clean_sql(expected)
-
-    def test_drop_row_filter_materialized_view(self, template_bundle):
-        """Test DROP ROW FILTER on materialized view."""
-        template_bundle.relation.type = DatabricksRelationType.MaterializedView
-        template_bundle.relation.type.render = Mock(return_value="MATERIALIZED VIEW")
-
-        sql = self.run_macro(
-            template_bundle.template, "alter_drop_row_filter", template_bundle.relation
-        )
-        assert "materialized view" in sql.lower()
-        assert "drop row filter" in sql.lower()
-
-
 class TestGetCreateRowFilterClause(MacroTestBase):
     """Tests for the get_create_row_filter_clause macro."""
 
@@ -368,42 +337,4 @@ class TestFetchRowFiltersSql(MacroTestBase):
           AND table_schema = 'some_schema'
           AND table_name = 'some_table'
         """
-        assert sql == self.clean_sql(expected)
-
-
-class TestDropRowFilterIfExists(MacroTestBase):
-    """Tests for the drop_row_filter_if_exists macro."""
-
-    @pytest.fixture(scope="class")
-    def template_name(self) -> str:
-        return "row_filter.sql"
-
-    @pytest.fixture(scope="class")
-    def macro_folders_to_load(self) -> list:
-        return ["macros/relations/components", "macros"]
-
-    def test_skips_hive_metastore(self, template_bundle):
-        """Test that Hive Metastore relations are skipped entirely."""
-        template_bundle.relation.is_hive_metastore = Mock(return_value=True)
-
-        sql = self.run_macro(
-            template_bundle.template, "drop_row_filter_if_exists", template_bundle.relation
-        )
-
-        # Should return empty - no DROP statement generated
-        assert sql == ""
-        # Verify is_hive_metastore was called
-        template_bundle.relation.is_hive_metastore.assert_called()
-
-    def test_generates_correct_drop_sql(self, template_bundle):
-        """Test that alter_drop_row_filter generates correct SQL.
-
-        This indirectly tests that drop_row_filter_if_exists would call
-        alter_drop_row_filter with the right arguments when filters exist.
-        """
-        # Verify the underlying SQL generation is correct
-        sql = self.run_macro(
-            template_bundle.template, "alter_drop_row_filter", template_bundle.relation
-        )
-        expected = "alter table `some_database`.`some_schema`.`some_table` drop row filter"
         assert sql == self.clean_sql(expected)

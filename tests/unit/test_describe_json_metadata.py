@@ -1531,13 +1531,10 @@ class TestParserToRowFilterProcessor:
             is_change=True,
         )
 
-    def test_row_filter_diff_unset(self):
+    def test_row_filter_diff_keeps_undeclared_filter(self):
         metadata = DatabricksDescribeJsonMetadata.from_json_metadata(ROW_FILTER_JSON)
         existing = RowFilterProcessor.from_relation_results({"row_filters": metadata.row_filters})
-        model = RowFilterConfig()
-        diff = model.get_diff(existing)
-        assert diff is not None
-        assert diff == RowFilterConfig(should_unset=True, is_change=True)
+        assert RowFilterConfig().get_diff(existing) is None
 
 
 class TestParserToQueryProcessor:
