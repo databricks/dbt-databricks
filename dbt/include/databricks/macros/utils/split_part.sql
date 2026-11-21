@@ -1,42 +1,23 @@
 {% macro databricks__split_part(string_text, delimiter_text, part_number) %}
 
-    {% set delimiter_expr %}
+    {#- split() takes a regex, so \Q...\E makes it match the delimiter literally. -#}
+    {%- set parts -%}
+        split({{ string_text }}, concat('\\Q', {{ delimiter_text }}, '\\E'))
+    {%- endset -%}
 
-        -- escape if starts with a special character
-        case when regexp_extract({{ delimiter_text }}, '([^A-Za-z0-9])(.*)', 1) != '_'
-            then concat('\\', {{ delimiter_text }})
-            else {{ delimiter_text }} end
+    {%- if part_number >= 0 -%}
 
-    {% endset %}
+        {%- set split_part_expr -%}
+        get({{ parts }}, {{ part_number - 1 if part_number > 0 else part_number }})
+        {%- endset -%}
 
-    {% if part_number >= 0 %}
+    {%- else -%}
 
-        {% set split_part_expr %}
+        {%- set split_part_expr -%}
+        get({{ parts }}, size({{ parts }}) + {{ part_number }})
+        {%- endset -%}
 
-        get(split(
-            {{ string_text }},
-            {{ delimiter_expr }}
-            ), {{ part_number - 1 if part_number > 0 else part_number }})
-
-        {% endset %}
-
-    {% else %}
-
-        {% set split_part_expr %}
-
-        get(split(
-            {{ string_text }},
-            {{ delimiter_expr }}
-            ), 
-                length({{ string_text }})
-                - length(
-                    replace({{ string_text }},  {{ delimiter_text }}, '')
-                ) + 1 + {{ part_number }}
-            )
-
-        {% endset %}
-
-    {% endif %}
+    {%- endif -%}
 
     {{ return(split_part_expr) }}
 

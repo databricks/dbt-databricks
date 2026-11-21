@@ -1,3 +1,9 @@
+## dbt-databricks 1.13.2 (TBD)
+
+### Fixes
+
+- Make `split_part` match its delimiter literally, so alphanumeric and multi-character delimiters return the right part instead of failing, returning NULL, or returning an empty string
+
 ## dbt-databricks 1.13.1 (Nov 19, 2026)
 
 ### Features
