@@ -2,7 +2,7 @@
 
 ### Fixes
 
-- Make `split_part` match its delimiter literally, so alphanumeric and multi-character delimiters return the right part instead of failing, returning NULL, or returning an empty string
+- Make `split_part` match its delimiter literally, so alphanumeric and multi-character delimiters return the right part instead of failing, returning NULL, or returning an empty string (thanks @1yangsh!) ([#1788](https://github.com/databricks/dbt-databricks/pull/1788))
 
 ## dbt-databricks 1.13.1 (Nov 19, 2026)
 
