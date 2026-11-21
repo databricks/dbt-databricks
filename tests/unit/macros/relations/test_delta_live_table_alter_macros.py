@@ -120,11 +120,11 @@ class TestMaterializedViewAlterTags(MacroTestBase):
         assert statements == expected
 
     def test_unrelated_alter_appends_no_tag_statements(self, template_bundle, context):
-        row_filter = RowFilterConfig(is_change=True, should_unset=True)
+        row_filter = RowFilterConfig(function="c.s.f", columns=("id",), is_change=True)
         configuration_changes = DatabricksRelationChangeSet(
             changes={"row_filter": row_filter}, requires_full_refresh=False
         )
-        context["alter_drop_row_filter"] = Mock(return_value="DROP ROW FILTER")
+        context["alter_set_row_filter"] = Mock(return_value="SET ROW FILTER")
         context["get_set_tag_statements"] = Mock(return_value=[])
 
         statements = capture_macro_return(
@@ -139,7 +139,7 @@ class TestMaterializedViewAlterTags(MacroTestBase):
             None,
         )
 
-        assert statements == ["DROP ROW FILTER", "REFRESH MATERIALIZED VIEW"]
+        assert statements == ["SET ROW FILTER", "REFRESH MATERIALIZED VIEW"]
         context["get_set_tag_statements"].assert_called_once_with(
             template_bundle.relation, None, None
         )

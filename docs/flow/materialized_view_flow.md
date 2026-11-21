@@ -1,6 +1,6 @@
 # Materialized View Flow
 
-_Last updated: 2026-10-01_
+_Last updated: 2026-11-21_
 
 > Materialized views do **not** use the `use_materialization_v2` flag — there is a single path.
 > Source: `dbt/include/databricks/macros/materializations/materialized_view.sql`.
@@ -68,3 +68,8 @@ Notes:
   desired table and column tag state through
   `get_set_tag_statements` while building the statement list. The execution macro only executes
   that completed list.
+- Row filters are add-only. Refresh-only runs leave policies untouched, and in-place alters
+  (`ALTER` statements) set the declared filter without removing others. A replacement runs
+  `CREATE OR REPLACE MATERIALIZED VIEW` by default, or builds a new MV under
+  `use_safer_relation_operations` or a `partition_by` change; either way, Databricks drops the
+  policies the new definition omits.

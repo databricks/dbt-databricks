@@ -66,7 +66,7 @@ class TestIncrementalColumnMasks(RerunSafeMixin, MaterializationV2Mixin):
         )
         assert len(result) == 1
         assert result[0][0] == 1
-        assert result[0][1] == "hello"  # name (unmasked)
+        assert result[0][1] == "*****"  # name (mask no longer declared, kept)
         assert result[0][2] == "********@example.com"  # email (partially masked)
         assert result[0][3] == "*****"  # password (masked)
 

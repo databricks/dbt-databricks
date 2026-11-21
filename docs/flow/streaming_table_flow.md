@@ -1,6 +1,6 @@
 # Streaming Table Flow
 
-_Last updated: 2026-10-13_
+_Last updated: 2026-11-21_
 
 > Streaming tables do **not** use the `use_materialization_v2` flag — there is a single path.
 > Source: `dbt/include/databricks/macros/materializations/streaming_table.sql`.
@@ -67,3 +67,7 @@ Notes:
   column tags continue to use `information_schema`. If the API denies access (for example, a token
   without the `unity-catalog` scope), table tags for the rest of the run are read from
   `information_schema` instead.
+- Row filters are add-only in dbt's own statements: refresh-only runs leave policies untouched,
+  and dbt never issues a drop. But every in-place config change re-issues
+  `CREATE OR REFRESH STREAMING TABLE` before setting the declared filter, and a replacement
+  builds a new table; Databricks drops the policies those definitions omit.

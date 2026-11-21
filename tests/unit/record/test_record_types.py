@@ -249,7 +249,6 @@ class TestRecordTypes:
             "row_filter": {
                 "function": "cat.sch.filt",
                 "columns": ["region", "tenant"],
-                "should_unset": False,
                 "is_change": True,
             },
         }
@@ -306,7 +305,6 @@ class TestRecordTypes:
             "row_filter": {
                 "function": "cat.sch.filt",
                 "columns": ["region"],
-                "should_unset": False,
                 "is_change": False,
             },
         }
@@ -340,8 +338,7 @@ class TestRecordTypes:
                 "column_masks": ColumnMaskConfig(
                     set_column_masks={
                         "ssn": {"function": "cat.sch.mask_ssn", "using_columns": "region"}
-                    },
-                    unset_column_masks=["old_col"],
+                    }
                 ),
                 "column_tags": ColumnTagsConfig(
                     set_column_tags={"email": {"pii": "true"}, "id": {"pk": "true"}}
@@ -388,8 +385,7 @@ class TestRecordTypes:
             "column_masks": {
                 "set_column_masks": {
                     "ssn": {"function": "cat.sch.mask_ssn", "using_columns": "region"}
-                },
-                "unset_column_masks": ["old_col"],
+                }
             },
             "column_tags": {"set_column_tags": {"email": {"pii": "true"}, "id": {"pk": "true"}}},
             "constraints": {
@@ -444,7 +440,6 @@ class TestRecordTypes:
             "row_filter": {
                 "function": "cat.sch.filt",
                 "columns": ["region"],
-                "should_unset": False,
                 "is_change": False,
             },
             "tags": {"set_tags": {"team": "data"}},

@@ -1,3 +1,9 @@
+## dbt-databricks 1.13.2 (TBD)
+
+### Fixes
+
+- **BREAKING:** Keep row filters and column masks that a model doesn't declare on `CREATE OR REPLACE` rebuilds and incremental runs instead of removing them; users who relied on removing a policy from dbt config to drop it must now drop it in Databricks or a post-hook ([#1785](https://github.com/databricks/dbt-databricks/pull/1785) resolves [#1782](https://github.com/databricks/dbt-databricks/issues/1782))
+
 ## dbt-databricks 1.13.1 (Nov 19, 2026)
 
 ### Features

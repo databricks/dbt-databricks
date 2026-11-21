@@ -16,10 +16,10 @@ class RowFilterConfig(DatabricksComponentConfig):
     """Row filter definition (function + columns).
 
     This class represents both the desired/existing state of a row filter AND
-    the diff result. When used as a diff result:
-    - should_unset=True means "remove the existing filter"
-    - should_unset=False with function set means "apply this filter"
-    - is_change=True indicates this is a diff that should trigger ALTER
+    the diff result. is_change=True marks a diff that should trigger ALTER.
+
+    Row filters are add-only: a filter the model doesn't declare is never removed,
+    since other tools may own it and Databricks keeps it across CREATE OR REPLACE TABLE.
 
     The is_change field is critical for streaming tables which use `diff or value`
     pattern (streaming_table.py:56). Without it, unchanged row filters would still
@@ -30,8 +30,6 @@ class RowFilterConfig(DatabricksComponentConfig):
     function: Optional[str] = None
     # Column names passed to the filter function
     columns: tuple[str, ...] = ()
-    # True when this instance represents a diff meaning "unset/drop the filter"
-    should_unset: bool = False
     # True when this represents an actual change that should trigger ALTER
     # (distinguishes diff result from `diff or value` fallback state)
     is_change: bool = False
@@ -52,20 +50,13 @@ class RowFilterConfig(DatabricksComponentConfig):
         """Compare desired state (self) with existing state (other).
 
         Returns:
-            - None if no changes needed
-            - RowFilterConfig with should_unset=True, is_change=True if filter should be removed
+            - None if no changes needed, including when no filter is declared
             - RowFilterConfig with the filter config and is_change=True if filter
               should be set/updated
         """
-        # Case 1: No filter desired, no filter exists -> no change
-        if self.function is None and other.function is None:
+        if self.function is None:
             return None
 
-        # Case 2: No filter desired, filter exists -> unset it
-        if self.function is None and other.function is not None:
-            return RowFilterConfig(should_unset=True, is_change=True)
-
-        # Case 3: Filter desired, compare with existing
         if self._normalize_function(self.function) == self._normalize_function(other.function):
             if self._normalize_columns(self.columns) == self._normalize_columns(other.columns):
                 return None  # No change

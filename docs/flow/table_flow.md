@@ -1,6 +1,6 @@
 # Table Flow
 
-_Last updated: 2026-10-28_
+_Last updated: 2026-11-21_
 
 > Two diagrams follow: **V1** is the default path, **V2** is used when the `use_materialization_v2`
 > behavior flag is enabled. See [flow/README.md](README.md) for what the flag is and how the
@@ -80,3 +80,8 @@ When a build drops the existing relation or uses safe staging, it calls `cache_r
 (see the [replace flow](replace_flow.md)) after creating the table and before post-hooks, so the
 model's post-hooks and later lookups in the run see the new table. An ordinary `CREATE OR REPLACE`
 rebuild of an existing table does not touch the relation cache.
+
+Row filters and column masks are add-only: dbt applies the ones the model declares and never
+removes others. A `CREATE OR REPLACE` rebuild keeps policies the model doesn't declare, because
+Databricks retains them. Safe staging and the drop-and-recreate paths build a new table, so those
+policies are lost.

@@ -1,6 +1,6 @@
 # Incremental Flow
 
-_Last updated: 2026-10-28_
+_Last updated: 2026-11-21_
 
 > Two diagrams follow: **Existing** is the default path, **New** is used when the
 > `use_materialization_v2` behavior flag is enabled. See [flow/README.md](README.md) for what the
@@ -102,3 +102,8 @@ When a replacement drops the existing relation or uses safe staging, it calls
 `cache_replaced_relation` (see the [replace flow](replace_flow.md)) after creating the table and
 before post-hooks, so the model's post-hooks and later lookups in the run see the new table.
 Incremental merges and `CREATE OR REPLACE` rebuilds do not touch the relation cache.
+
+Row filters and column masks are add-only on both paths: the config diff sets the ones the model
+declares and never removes others, so incremental runs and `CREATE OR REPLACE` rebuilds keep
+policies the model doesn't declare. Safe staging and the drop-and-recreate paths build a new
+table, so those policies are lost.
