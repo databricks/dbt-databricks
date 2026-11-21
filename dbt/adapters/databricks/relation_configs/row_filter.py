@@ -19,7 +19,7 @@ class RowFilterConfig(DatabricksComponentConfig):
     the diff result. is_change=True marks a diff that should trigger ALTER.
 
     Row filters are add-only: a filter the model doesn't declare is never removed,
-    since other tools may own it and Databricks keeps it across CREATE OR REPLACE.
+    since other tools may own it and Databricks keeps it across CREATE OR REPLACE TABLE.
 
     The is_change field is critical for streaming tables which use `diff or value`
     pattern (streaming_table.py:56). Without it, unchanged row filters would still

@@ -241,13 +241,14 @@ class TestGetCreateRowFilterClause(MacroTestBase):
     def macro_folders_to_load(self) -> list:
         return ["macros/relations/components", "macros"]
 
-    def test_no_config(self, config, template_bundle):
+    def test_no_config(self, config, context, template_bundle):
         """Test with no row_filter config."""
-        # config is empty by default
+        context["statement"] = Mock(return_value="")
         sql = self.run_macro(
             template_bundle.template, "get_create_row_filter_clause", template_bundle.relation
         )
         assert sql == ""
+        context["statement"].assert_not_called()
 
     def test_with_valid_config(self, config, template_bundle):
         """Test with valid row_filter config."""

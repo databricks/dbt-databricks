@@ -19,9 +19,6 @@ ARCHITECTURAL NOTE: CREATE and ALTER Paths
    - Used for subsequent changes in incremental materializations (incremental, MV, ST)
    - Receives pre-validated RowFilterConfig from Python
 
-Row filters are add-only: dbt never drops a filter the model doesn't declare, since
-other tools may own it and Databricks keeps it across CREATE OR REPLACE.
-
 The duplication exists because:
 - CREATE path reads raw config (Python processing hasn't happened yet)
 - ALTER path uses Python-processed config via RowFilterProcessor.from_relation_config()
@@ -92,8 +89,6 @@ The duplication exists because:
 {#-- ===== APPLY MACRO (executes SQL) ===== --#}
 
 {%- macro apply_row_filter(target_relation, row_filter) -%}
-  {#- Executes SQL immediately via call statement('main') -#}
-  {#- row_filter is a RowFilterConfig object with is_change and function fields -#}
   {%- if target_relation.is_hive_metastore() -%}
     {{ exceptions.raise_compiler_error("Row filters are not supported for Hive Metastore") }}
   {%- endif -%}

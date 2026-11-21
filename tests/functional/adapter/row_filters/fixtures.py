@@ -87,3 +87,18 @@ base_model_safe_sql = """
 ) }}
 SELECT 'user1' as user_id, 'region_a' as region, CAST(100 AS BIGINT) as amount
 """
+
+# Models that never declare row_filter or column_mask; policies are applied outside dbt.
+external_policy_table_sql = """
+{{ config(materialized='table') }}
+SELECT 'user1' as user_id, 'region_a' as region, 'secret_a' as secret
+UNION ALL
+SELECT 'user2' as user_id, 'region_b' as region, 'secret_b' as secret
+"""
+
+external_policy_incremental_sql = """
+{{ config(materialized='incremental', unique_key='user_id') }}
+SELECT 'user1' as user_id, 'region_a' as region, 'secret_a' as secret
+UNION ALL
+SELECT 'user2' as user_id, 'region_b' as region, 'secret_b' as secret
+"""

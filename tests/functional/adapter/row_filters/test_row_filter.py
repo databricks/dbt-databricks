@@ -5,11 +5,14 @@ from tests.functional.adapter.fixtures import (
     MaterializationV1Mixin,
     MaterializationV2Mixin,
     RequiresDescribeAsJsonCapabilityMixin,
+    RerunSafeMixin,
 )
 from tests.functional.adapter.row_filters.fixtures import (
     base_model_mv,
     base_model_sql,
     base_model_streaming_table,
+    external_policy_incremental_sql,
+    external_policy_table_sql,
     model_no_filter,
     model_updated_filter,
     model_with_row_filter,
@@ -18,12 +21,16 @@ from tests.functional.adapter.row_filters.fixtures import (
 )
 
 
-class BaseRowFilterMixin:
+class BaseRowFilterMixin(RerunSafeMixin):
     """Base mixin with helper methods for row filter tests.
 
     Does not include materialization version - subclasses should combine
     with MaterializationV1Mixin or MaterializationV2Mixin as needed.
     """
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("base_model",)
 
     def create_filter_udfs(self, project):
         """Create test UDFs for row filtering."""
@@ -422,3 +429,64 @@ class TestIncrementalRowFilterV1(BaseRowFilterMixin, MaterializationV1Mixin):
         write_file(model_no_filter, "models", "schema.yml")
         run_dbt(["run"])
         self.assert_qualified_filter(project, "base_model", "user_filter", "user_id")
+
+
+class ExternalPoliciesRetainedBase(BaseRowFilterMixin):
+    """Row filters and column masks applied outside dbt survive later dbt runs."""
+
+    @pytest.fixture(scope="class")
+    def models(self):
+        return {
+            "ext_table.sql": external_policy_table_sql,
+            "ext_incremental.sql": external_policy_incremental_sql,
+        }
+
+    @pytest.fixture(scope="class")
+    def relations_to_reset(self):
+        return ("ext_table", "ext_incremental")
+
+    def test_external_policies_retained(self, project):
+        schema = f"{project.database}.{project.test_schema}"
+        self.create_filter_udfs(project)
+        project.run_sql(
+            f"CREATE OR REPLACE FUNCTION {schema}.secret_mask(secret STRING) "
+            "RETURNS STRING RETURN '*****'"
+        )
+        run_dbt(["run"])
+        for table in ("ext_table", "ext_incremental"):
+            project.run_sql(
+                f"ALTER TABLE {schema}.{table} SET ROW FILTER {schema}.region_filter ON (region)"
+            )
+            project.run_sql(
+                f"ALTER TABLE {schema}.{table} ALTER COLUMN secret SET MASK {schema}.secret_mask"
+            )
+
+        run_dbt(["run"])
+
+        for table in ("ext_table", "ext_incremental"):
+            self.assert_qualified_filter(project, table, "region_filter", "region")
+            masks = project.run_sql(
+                f"""
+                SELECT column_name, mask_name
+                FROM {project.database}.information_schema.column_masks
+                WHERE table_schema = '{project.test_schema}' AND table_name = '{table}'
+                """,
+                fetch="all",
+            )
+            assert [(m[0], m[1].lower()) for m in masks] == [
+                ("secret", f"{schema}.secret_mask".lower())
+            ]
+            rows = project.run_sql(
+                f"SELECT user_id, region, secret FROM {schema}.{table}", fetch="all"
+            )
+            assert [tuple(r) for r in rows] == [("user1", "region_a", "*****")]
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestExternalPoliciesRetainedV1(ExternalPoliciesRetainedBase, MaterializationV1Mixin):
+    pass
+
+
+@pytest.mark.skip_profile("databricks_cluster")
+class TestExternalPoliciesRetainedV2(ExternalPoliciesRetainedBase, MaterializationV2Mixin):
+    pass
