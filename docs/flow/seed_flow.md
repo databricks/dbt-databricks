@@ -23,6 +23,8 @@ flowchart LR
     DROP[Drop existing table]
     INSERT[chunked inserts to table]
     GRANTS[Apply grants]
+    TAGS[Apply table & column tags]
+    OPT[Run optimize for zorder / liquid_clustered_by]
     POST["Run post-hooks (inside transaction)"]
     POST2["Run post-hooks (outside transaction)"]
     D1{Existing?}
@@ -42,6 +44,8 @@ flowchart LR
     DROP-->CREATE
     CREATE-->INSERT
     INSERT-->GRANTS
-    GRANTS-->POST
+    GRANTS-->TAGS
+    TAGS-->OPT
+    OPT-->POST
     POST-->POST2
 ```

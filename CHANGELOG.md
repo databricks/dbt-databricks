@@ -1,3 +1,9 @@
+## dbt-databricks next
+
+### Features
+
+- Support `databricks_tags` (table- and column-level tags) and liquid clustering (`liquid_clustered_by`, `auto_liquid_cluster`) for seeds ([#1783](https://github.com/databricks/dbt-databricks/issues/1783))
+
 ## dbt-databricks 1.13.1 (Nov 19, 2026)
 
 ### Features

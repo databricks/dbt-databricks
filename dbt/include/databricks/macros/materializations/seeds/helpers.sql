@@ -97,6 +97,7 @@
     )
     {{ file_format_clause(catalog_relation) }}
     {{ partition_cols(label="partitioned by") }}
+    {{ liquid_clustered_cols() }}
     {{ clustered_cols(label="clustered by") }}
     {{ location_clause(catalog_relation) }}
     {{ comment_clause() }}

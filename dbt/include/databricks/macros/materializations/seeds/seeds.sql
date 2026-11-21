@@ -36,6 +36,18 @@
   {% do apply_grants(target_relation, grant_config, should_revoke=should_revoke) %}
   -- No need to persist docs, already handled in seed create
 
+  {%- set tags = config.get('databricks_tags') -%}
+  {%- if tags -%}
+    {%- do apply_tags(target_relation, tags) -%}
+  {%- endif -%}
+
+  {% set column_tags = adapter.get_column_tags_from_model(config.model) %}
+  {% if column_tags and column_tags.set_column_tags %}
+    {{ apply_column_tags(target_relation, column_tags) }}
+  {% endif %}
+
+  {% do optimize(target_relation) %}
+
   {{ run_post_hooks() }}
 
   {{ return({'relations': [target_relation]}) }}
